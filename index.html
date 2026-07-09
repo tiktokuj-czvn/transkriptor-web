@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Transkriptor — vícejazyčný přepis audia</title>
+<style>
+  :root{
+    --bg:#f7f7f8; --card:#ffffff; --ink:#1a1a1e; --muted:#6b6b76;
+    --line:#e6e6ea; --accent:#4f46e5; --accent-ink:#ffffff;
+    --ok:#0f9d58; --err:#d93025; --drop:#f0f0ff;
+    --radius:14px; --shadow:0 1px 3px rgba(0,0,0,.06),0 8px 24px rgba(0,0,0,.05);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0f0f12; --card:#17171c; --ink:#ececf1; --muted:#9a9aa6;
+      --line:#2a2a32; --accent:#7c74ff; --accent-ink:#0f0f12;
+      --drop:#1c1c28; --shadow:0 1px 3px rgba(0,0,0,.4),0 8px 30px rgba(0,0,0,.4);
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:720px;margin:0 auto;padding:32px 20px 80px}
+  header{text-align:center;margin-bottom:28px}
+  h1{font-size:26px;margin:0 0 6px;letter-spacing:-.02em}
+  .sub{color:var(--muted);font-size:15px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:22px;margin-bottom:18px}
+  label{display:block;font-size:13px;font-weight:600;margin-bottom:7px;color:var(--muted)}
+  input[type=password],input[type=text],select{
+    width:100%;padding:11px 13px;font-size:15px;border:1px solid var(--line);border-radius:10px;
+    background:var(--bg);color:var(--ink);outline:none;transition:border-color .15s}
+  input:focus,select:focus{border-color:var(--accent)}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .row>div{flex:1;min-width:180px}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px}
+  .hint a{color:var(--accent)}
+  #drop{border:2px dashed var(--line);border-radius:var(--radius);padding:38px 20px;text-align:center;
+    cursor:pointer;transition:.15s;background:var(--card)}
+  #drop:hover,#drop.over{border-color:var(--accent);background:var(--drop)}
+  #drop .big{font-size:16px;font-weight:600;margin-bottom:4px}
+  #drop .small{font-size:13px;color:var(--muted)}
+  #fileName{margin-top:12px;font-size:14px;font-weight:600;color:var(--accent)}
+  button{font-family:inherit;font-size:15px;font-weight:600;border:none;border-radius:10px;cursor:pointer;
+    padding:12px 18px;transition:.15s;background:var(--accent);color:var(--accent-ink)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
+  .actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+  .go{width:100%;padding:14px;font-size:16px}
+  #progress{display:none;margin-top:18px}
+  .bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden}
+  .bar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s;border-radius:99px}
+  #status{font-size:13px;color:var(--muted);margin-top:8px;text-align:center}
+  #result{display:none}
+  #transcript{width:100%;min-height:280px;padding:16px;font-size:15px;line-height:1.65;
+    border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);resize:vertical;
+    font-family:inherit}
+  .meta{font-size:13px;color:var(--muted);margin-bottom:10px}
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:10px;font-size:14px;
+    transition:.25s;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .err{color:var(--err);font-size:14px;margin-top:10px}
+  details{margin-top:14px;font-size:13px;color:var(--muted)}
+  summary{cursor:pointer;font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🎧 Transkriptor</h1>
+    <div class="sub">Vícejazyčný přepis audia a videa. Rychle, přímo v prohlížeči.</div>
+  </header>
+
+  <!-- API klíč -->
+  <div class="card">
+    <label for="key">Groq API klíč</label>
+    <input type="password" id="key" placeholder="gsk_..." autocomplete="off">
+    <div class="hint">Zadej jednou, uloží se jen ve tvém prohlížeči. Zdarma získáš na
+      <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>.</div>
+  </div>
+
+  <!-- vstup -->
+  <div class="card">
+    <div class="row" style="margin-bottom:16px">
+      <div>
+        <label for="lang">Jazyk nahrávky</label>
+        <select id="lang">
+          <option value="auto">Auto (rozpozná sám)</option>
+          <option value="cs">Čeština</option>
+          <option value="en">Angličtina</option>
+          <option value="vi">Vietnamština</option>
+          <option value="sk">Slovenština</option>
+          <option value="de">Němčina</option>
+          <option value="fr">Francouzština</option>
+          <option value="es">Španělština</option>
+          <option value="uk">Ukrajinština</option>
+          <option value="pl">Polština</option>
+          <option value="it">Italština</option>
+          <option value="pt">Portugalština</option>
+        </select>
+      </div>
+      <div>
+        <label for="fmt">Model</label>
+        <select id="fmt">
+          <option value="whisper-large-v3-turbo">Turbo (rychlý, doporučeno)</option>
+          <option value="whisper-large-v3">Large v3 (nejpřesnější)</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="drop">
+      <div class="big">Přetáhni sem audio nebo video</div>
+      <div class="small">nebo klikni a vyber soubor — m4a, mp3, wav, mp4, mov…</div>
+      <div id="fileName"></div>
+    </div>
+    <input type="file" id="file" accept="audio/*,video/*" hidden>
+
+    <button class="go" id="btn" disabled>Přepsat</button>
+
+    <div id="progress">
+      <div class="bar"><i id="barFill"></i></div>
+      <div id="status">Připravuji…</div>
+    </div>
+    <div class="err" id="error"></div>
+  </div>
+
+  <!-- výsledek -->
+  <div class="card" id="result">
+    <div class="meta" id="resultMeta"></div>
+    <textarea id="transcript" spellcheck="false"></textarea>
+    <div class="actions">
+      <button id="copy">📋 Kopírovat</button>
+      <button class="ghost" id="download">⬇︎ Stáhnout .txt</button>
+    </div>
+  </div>
+
+  <details>
+    <summary>Jak to funguje &amp; soukromí</summary>
+    <p>Soubor se v tvém prohlížeči převede na 16 kHz mono, dlouhé nahrávky se rozdělí na části a pošlou přímo
+    na Groq (model Whisper large-v3-turbo), který vrátí text. Nic neprochází přes žádný cizí server kromě
+    Groqu. Klíč zůstává jen u tebe v prohlížeči.</p>
+  </details>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const keyEl=$("#key"), langEl=$("#lang"), fmtEl=$("#fmt"), fileEl=$("#file"),
+      drop=$("#drop"), btn=$("#btn"), fileName=$("#fileName"),
+      prog=$("#progress"), bar=$("#barFill"), status=$("#status"), errEl=$("#error"),
+      result=$("#result"), transcript=$("#transcript"), resultMeta=$("#resultMeta"),
+      toastEl=$("#toast");
+
+const GROQ_URL="https://api.groq.com/openai/v1/audio/transcriptions";
+const CHUNK_SEC=480;        // 8 min na kus (~15 MB WAV, pod Groq limitem 25 MB)
+const SR=16000;             // 16 kHz mono jako lokální recept
+let selectedFile=null;
+
+// --- API klíč: uložení / načtení ---
+keyEl.value = localStorage.getItem("groq_key") || "";
+keyEl.addEventListener("input", ()=>{ localStorage.setItem("groq_key", keyEl.value.trim()); refresh(); });
+
+// --- výběr souboru ---
+drop.addEventListener("click", ()=>fileEl.click());
+fileEl.addEventListener("change", e=>{ if(e.target.files[0]) setFile(e.target.files[0]); });
+["dragover","dragenter"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("over");}));
+["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("over");}));
+drop.addEventListener("drop", e=>{ if(e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); });
+
+function setFile(f){ selectedFile=f; fileName.textContent="📄 "+f.name; refresh(); }
+function refresh(){ btn.disabled = !(selectedFile && keyEl.value.trim()); }
+
+function toast(msg){ toastEl.textContent=msg; toastEl.classList.add("show");
+  setTimeout(()=>toastEl.classList.remove("show"),1800); }
+
+// --- převod AudioBuffer na 16 kHz mono WAV (Blob) ---
+function encodeWAV(samples, sampleRate){
+  const buf=new ArrayBuffer(44+samples.length*2);
+  const view=new DataView(buf);
+  const w=(o,s)=>{ for(let i=0;i<s.length;i++) view.setUint8(o+i,s.charCodeAt(i)); };
+  w(0,"RIFF"); view.setUint32(4,36+samples.length*2,true); w(8,"WAVE");
+  w(12,"fmt "); view.setUint32(16,16,true); view.setUint16(20,1,true);
+  view.setUint16(22,1,true); view.setUint32(24,sampleRate,true);
+  view.setUint32(28,sampleRate*2,true); view.setUint16(32,2,true); view.setUint16(34,16,true);
+  w(36,"data"); view.setUint32(40,samples.length*2,true);
+  let off=44;
+  for(let i=0;i<samples.length;i++){ let s=Math.max(-1,Math.min(1,samples[i]));
+    view.setInt16(off,s<0?s*0x8000:s*0x7FFF,true); off+=2; }
+  return new Blob([view],{type:"audio/wav"});
+}
+
+// --- dekódování + resample na 16 kHz mono ---
+async function decodeToMono16k(file){
+  const arrayBuf=await file.arrayBuffer();
+  const AC=window.AudioContext||window.webkitAudioContext;
+  const tmp=new AC();
+  const decoded=await tmp.decodeAudioData(arrayBuf);
+  tmp.close();
+  const frames=Math.ceil(decoded.duration*SR);
+  const off=new OfflineAudioContext(1, frames, SR);
+  const src=off.createBufferSource();
+  src.buffer=decoded; src.connect(off.destination); src.start();
+  const rendered=await off.startRendering();
+  return rendered.getChannelData(0); // Float32Array mono @16k
+}
+
+// --- jedno volání Groq ---
+async function transcribeChunk(blob, key, model, lang){
+  const fd=new FormData();
+  fd.append("file", blob, "chunk.wav");
+  fd.append("model", model);
+  fd.append("response_format", "text");
+  if(lang && lang!=="auto") fd.append("language", lang);
+  const res=await fetch(GROQ_URL,{ method:"POST", headers:{Authorization:"Bearer "+key}, body:fd });
+  if(!res.ok){
+    let msg=res.status+" "+res.statusText;
+    try{ const j=await res.json(); if(j.error&&j.error.message) msg=j.error.message; }catch(e){}
+    throw new Error(msg);
+  }
+  return (await res.text()).trim();
+}
+
+// --- hlavní běh ---
+btn.addEventListener("click", async ()=>{
+  const key=keyEl.value.trim(), model=fmtEl.value, lang=langEl.value;
+  errEl.textContent=""; result.style.display="none"; btn.disabled=true;
+  prog.style.display="block"; bar.style.width="4%"; status.textContent="Načítám a převádím audio…";
+  try{
+    const mono=await decodeToMono16k(selectedFile);
+    const total=mono.length, chunkLen=CHUNK_SEC*SR;
+    const nChunks=Math.max(1, Math.ceil(total/chunkLen));
+    let parts=[];
+    for(let i=0;i<nChunks;i++){
+      const slice=mono.subarray(i*chunkLen, Math.min((i+1)*chunkLen, total));
+      const wav=encodeWAV(slice, SR);
+      status.textContent = nChunks>1 ? `Přepisuji část ${i+1}/${nChunks}…` : "Přepisuji…";
+      bar.style.width = (8 + (i/nChunks)*88)+"%";
+      const text=await transcribeChunk(wav, key, model, lang);
+      parts.push(text);
+      bar.style.width = (8 + ((i+1)/nChunks)*88)+"%";
+    }
+    const full=parts.join("\n").replace(/\n{3,}/g,"\n\n").trim();
+    bar.style.width="100%"; status.textContent="Hotovo ✓";
+    const words=full.split(/\s+/).filter(Boolean).length;
+    resultMeta.textContent=`${words} slov · model ${model}` + (lang==="auto"?" · auto-detekce jazyka":"");
+    transcript.value=full;
+    result.style.display="block";
+    setTimeout(()=>{ prog.style.display="none"; }, 800);
+    result.scrollIntoView({behavior:"smooth"});
+  }catch(e){
+    prog.style.display="none";
+    errEl.textContent="Chyba: "+e.message + (String(e.message).includes("decode")?" — tenhle formát prohlížeč neumí dekódovat, zkus mp3/m4a/wav.":"");
+  }finally{ refresh(); }
+});
+
+// --- kopírovat / stáhnout ---
+$("#copy").addEventListener("click", ()=>{ navigator.clipboard.writeText(transcript.value); toast("Zkopírováno"); });
+$("#download").addEventListener("click", ()=>{
+  const name=(selectedFile?selectedFile.name.replace(/\.[^.]+$/,""):"transkript")+" - transkript.txt";
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([transcript.value],{type:"text/plain"}));
+  a.download=name; a.click(); URL.revokeObjectURL(a.href);
+});
+
+refresh();
+</script>
+</body>
+</html>
