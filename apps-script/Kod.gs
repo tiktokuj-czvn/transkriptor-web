@@ -5,12 +5,14 @@
  * datovaný oddíl na začátek dokumentu.
  *
  * Nastavení (Project Settings → Script Properties):
- *   GROQ_API_KEY   = gsk_...            (stejný klíč jako v appce)
- *   DOC_ID         = 11L6bS-...mHMY     (ID dokumentu se zápisy)
- *   SHARED_SECRET  = tajne-heslo        (stejné jako v appce, aby nepsal kdokoli)
+ *   ANTHROPIC_API_KEY = sk-ant-...      (klíč z console.anthropic.com)
+ *   DOC_ID            = 11L6bS-...mHMY  (ID dokumentu se zápisy)
+ *   SHARED_SECRET     = tajne-heslo     (stejné jako heslo appky, aby nepsal kdokoli)
+ *
+ * Přepis (Whisper) běží v appce přes Groq; tento skript řeší jen generování zápisu přes Claude.
  */
 
-var LLM_MODEL = "llama-3.3-70b-versatile";
+var LLM_MODEL = "claude-sonnet-5";   // kvalita/cena; levněji: "claude-haiku-4-5-20251001"
 
 function doPost(e) {
   try {
@@ -26,7 +28,7 @@ function doPost(e) {
     var meetingTitle = body.title || "";
     var dateStr = body.date || todayCz_();
 
-    var zapis = generateZapis_(transcript, meetingTitle, dateStr, props.getProperty("GROQ_API_KEY"));
+    var zapis = generateZapis_(transcript, meetingTitle, dateStr, props.getProperty("ANTHROPIC_API_KEY"));
     insertAtTop_(props.getProperty("DOC_ID"), zapis);
 
     return json_({ ok: true, chars: zapis.length });
@@ -35,57 +37,58 @@ function doPost(e) {
   }
 }
 
-/** Vygeneruje zápis v Bataron stylu přes Groq LLM. Vrací markdown. */
-function generateZapis_(transcript, title, dateStr, groqKey) {
+/** Vygeneruje zápis v Bataron stylu přes Claude. Vrací markdown. */
+function generateZapis_(transcript, title, dateStr, anthropicKey) {
   var system = [
-    "Jsi asistent, který z přepisu meetingu píše strukturovaný zápis v češtině.",
-    "Piš PŘESNĚ ve stylu dokumentu 'Bataron zápisy z meetingů'. Pravidla:",
-    "- Výstup je čistý markdown. Nadpisy: '# ' = hlavní (datum, titul), '## ' = sekce, '### ' = podsekce, '#### ' = pod-podsekce.",
+    "Jsi zkušený asistent, který z přepisu meetingu píše DETAILNÍ strukturovaný zápis v češtině",
+    "ve stylu dokumentu 'Bataron zápisy z meetingů'.",
+    "",
+    "FORMÁT:",
+    "- Čistý markdown. První řádek: '# " + dateStr + "'. Druhý řádek: 'Zpracováno z přepisu " +
+      (title ? "„" + title + "“" : "meetingu") + ".'. Pak '# Zápis z meetingu Bataron'.",
+    "- Sekce '## ', podsekce '### ', pod-podsekce '#### '.",
     "- NIKDY nepoužívej pomlčky (— ani –). Místo nich čárka, dvojtečka, závorky, tečka.",
     "- Číslované seznamy piš jako '1. ', '2. ' na samostatných řádcích.",
-    "- Uvnitř sekcí používej krátké popiskové řádky zakončené dvojtečkou (Účel:, Důvod:, Závěr:, Pravidlo:, Princip:, Dohoda:, Otevřené:) a pod nimi text nebo seznam.",
-    "- Jazyk: věcný, jasný, detailní, celé věty. Žádné uvozovky kolem celých odstavců.",
+    "- Uvnitř sekcí používej popiskové řádky zakončené dvojtečkou (Účel:, Důvod:, Závěr:, Pravidlo:, Dohoda:, Princip:, Otevřené:) a pod nimi rozvedený text nebo seznam.",
     "",
-    "POVINNÁ STRUKTURA zápisu (v tomto pořadí, sekce vynech jen když opravdu nejsou data):",
-    "# " + dateStr,
-    "Zpracováno z přepisu " + (title ? "„" + title + "“" : "meetingu") + ".",
-    "# Zápis z meetingu Bataron",
-    "## Základní informace  (Datum, Místo pokud zazní, Téma, Délka záznamu pokud lze odhadnout)",
+    "DETAIL (klíčové): Nepiš jednu větu na sekci. Každou sekci rozveď do několika vět a konkrétních bodů PŘÍMO z přepisu.",
+    "Zachyť konkrétní argumenty, důvody, varianty, čísla, jména, rozhodnutí i nuance. Cílová délka 900 až 1600 slov.",
+    "",
+    "STRUKTURA (v tomto pořadí, sekci vynech jen když opravdu nejsou data):",
+    "## Základní informace (Téma; Přítomní a Místo pokud zazní; Délka pokud lze odhadnout)",
     "## Hlavní cíl meetingu",
     "## Hlavní závěr",
-    "## (tematické sekce podle obsahu, klidně několik, s ## a ###)",
+    "## tematické sekce podle obsahu (klidně 4 až 8, s ## a ###)",
     "## Rozhodnutí",
     "## Otevřené otázky",
-    "## Úkoly  (seskup po lidech: ### David, ### Suzy, ### Woody, ### Julča, ### Naty, ### Všichni; jen ty, co v přepisu zazní)",
+    "## Úkoly (### s pouhým jménem: David, Suzy, Woody, Julča, Naty, Všichni; jen ti, co zazní; pod každým číslovaný seznam)",
     "## Nejbližší další kroky",
     "## Shrnutí pro tým",
     "",
     "Členové týmu: David, Suzy, Woody (též Vůdy), Julča, Naty. Klient/značka: Bataron.",
-    "Vytěž z přepisu maximum konkrétních detailů, rozhodnutí a úkolů. Nevymýšlej si fakta, která v přepisu nejsou."
+    "Vytěž z přepisu maximum konkrétních detailů. Nevymýšlej si fakta, která v přepisu nejsou.",
+    "Vrať POUZE samotný zápis v markdownu, bez úvodních a závěrečných poznámek."
   ].join("\n");
 
-  var user = "Datum meetingu: " + dateStr + "\n\nPŘEPIS:\n" + transcript;
-
-  var res = UrlFetchApp.fetch("https://api.groq.com/openai/v1/chat/completions", {
+  var res = UrlFetchApp.fetch("https://api.anthropic.com/v1/messages", {
     method: "post",
     contentType: "application/json",
-    headers: { Authorization: "Bearer " + groqKey },
+    headers: { "x-api-key": anthropicKey, "anthropic-version": "2023-06-01" },
     muteHttpExceptions: true,
     payload: JSON.stringify({
       model: LLM_MODEL,
-      temperature: 0.3,
       max_tokens: 8000,
+      system: system,
       messages: [
-        { role: "system", content: system },
-        { role: "user", content: user }
+        { role: "user", content: "Datum meetingu: " + dateStr + "\n\nPŘEPIS:\n" + transcript }
       ]
     })
   });
   var data = JSON.parse(res.getContentText());
-  if (!data.choices || !data.choices[0]) {
-    throw new Error("Groq LLM chyba: " + res.getContentText().slice(0, 300));
+  if (!data.content || !data.content[0] || !data.content[0].text) {
+    throw new Error("Claude chyba: " + res.getContentText().slice(0, 300));
   }
-  return data.choices[0].message.content.trim();
+  return data.content[0].text.trim();
 }
 
 /** Vloží markdown jako naformátovaný obsah na ZAČÁTEK dokumentu (nejnovější nahoře). */
