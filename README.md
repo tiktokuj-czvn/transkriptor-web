@@ -1,38 +1,39 @@
 # Transkriptor Web 🎧→📄
 
-Online vícejazyčný přepis audia/videa. Jedna statická stránka, běží kdekoli. Přepis jede přímo z prohlížeče na **Groq Whisper (large-v3-turbo)** — stejný model jako lokální verze, jen v cloudu (rychlé, levné, 99 jazyků, auto-detekce).
+Online vícejazyčný přepis audia/videa. Přepis běží na **Groq Whisper (large-v3-turbo)** — stejný model jako lokální verze, jen v cloudu (rychlé, levné, 99 jazyků, auto-detekce).
 
-## Jak to funguje
+Appka umí **dva režimy** a sama pozná, který použít:
 
-1. Uživatel zadá svůj **Groq API klíč** (uloží se jen v jeho prohlížeči, `localStorage`).
-2. Přetáhne audio/video → prohlížeč ho převede na 16 kHz mono a dlouhé nahrávky rozseká na 8min kousky.
-3. Kousky se pošlou přímo na Groq, text se poskládá zpět → zobrazí, zkopíruje, stáhne jako `.txt`.
+- **Sdílené heslo (proxy):** tvůj Groq klíč je skrytý na serveru (Vercel), lidé zadají jen heslo. Platíš ty, ostatní nic neřeší. Toto je hlavní režim pro sdílení.
+- **Vlastní klíč (přímo):** kdo otevře „Pokročilé" a zadá svůj Groq klíč, přepisuje na svůj účet přímo z prohlížeče (funguje i na čistě statickém hostingu bez serveru).
 
-Žádný vlastní server, žádné timeouty. Data nikam kromě Groqu neodchází.
+## Nasazení na Vercel (režim se sdíleným heslem)
 
-## Groq API klíč (zdarma)
+1. Jdi na <https://vercel.com>, přihlas se přes GitHub.
+2. **Add New → Project → Import** repo `tiktokuj-czvn/transkriptor-web`.
+3. Ve **Environment Variables** přidej dvě:
+   - `GROQ_API_KEY` = tvůj klíč z <https://console.groq.com/keys> (`gsk_...`)
+   - `APP_PASSWORD` = heslo, které budeš rozdávat lidem (cokoli si zvolíš)
+4. **Deploy.** Dostaneš veřejnou URL (`…vercel.app`). Každý další push do `main` se nasadí sám.
 
-1. Registrace na <https://console.groq.com> (přes Google).
-2. **API Keys → Create Key**, zkopíruj `gsk_...`.
-3. Vlož do appky. Free tier bohatě stačí; placený je ~$0.04 za hodinu audia.
+Lidem pak pošleš URL + heslo. Přepisují bez vlastního klíče, platíš ty (Groq ≈ $0.04/hod audia).
 
-## Nasazení (veřejná URL)
+## Architektura
 
-Je to jeden statický soubor `index.html`, takže nejjednodušší:
+- `index.html` — celá appka (UI + logika). V prohlížeči převede vstup na 16 kHz mono a dlouhé nahrávky rozseká (100 s/kus přes proxy kvůli 4,5 MB limitu Vercelu; 8 min přes vlastní klíč).
+- `api/transcribe.js` — Vercel serverless proxy: ověří heslo (`APP_PASSWORD`), přepošle audio na Groq s klíčem (`GROQ_API_KEY`). Bez npm závislostí.
+- `vercel.json` — konfigurace funkce.
 
-**Netlify Drop (nejrychlejší, bez účtu):**
-1. Otevři <https://app.netlify.com/drop>
-2. Přetáhni celou složku `transkriptor-web` na stránku.
-3. Dostaneš veřejnou URL. Hotovo, funguje i z mobilu, můžeš sdílet.
+## GitHub Pages verze
 
-**Vercel / Cloudflare Pages / GitHub Pages** fungují taky — stačí nahrát `index.html`.
+Repo má zapnuté i GitHub Pages (<https://tiktokuj-czvn.github.io/transkriptor-web/>). Tam neběží server,
+takže funguje jen režim s **vlastním Groq klíčem** (přes „Pokročilé"). Sdílené heslo vyžaduje Vercel.
 
 ## Limity
 
-- Maximální velikost jednoho kousku pro Groq je 25 MB; appka proto seká po 8 min (16 kHz mono ≈ 15 MB/kus), takže délka nahrávky je v pořádku.
 - Formáty: cokoli, co umí dekódovat prohlížeč (m4a, mp3, wav, mp4, mov, ogg, flac…).
-- Kdo dostane URL, používá **svůj vlastní** Groq klíč — ty neplatíš za cizí přepisy.
+- Dlouhé nahrávky se sekají automaticky, takže délka nevadí.
 
-## Lokální varianta
+## Lokální offline varianta
 
 Plně offline verze (bez cloudu, běží na GPU Macu) je v `~/Vibecoding/transkriptor/`.
