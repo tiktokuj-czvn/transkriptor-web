@@ -119,6 +119,23 @@
       </div>
     </div>
 
+    <div class="row" style="margin-bottom:16px">
+      <div>
+        <label for="ucel">Účel</label>
+        <select id="ucel">
+          <option value="plain">Jen přepis</option>
+          <option value="bataron">Bataron zápis → Google Docs</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="bataronCfg" style="display:none;margin-bottom:16px">
+      <label for="zapisUrl">Apps Script URL (Bataron)</label>
+      <input type="text" id="zapisUrl" placeholder="https://script.google.com/macros/s/…/exec">
+      <div class="hint">Z nasazení Apps Scriptu (viz apps-script/NAVOD.md). Uloží se v prohlížeči.
+        Zápis se vytvoří automaticky po přepisu a vloží do dokumentu Bataron.</div>
+    </div>
+
     <div id="drop">
       <div class="big">Přetáhni sem audio nebo video</div>
       <div class="small">nebo klikni a vyber soubor — m4a, mp3, wav, mp4, mov…</div>
@@ -158,6 +175,7 @@
 <script>
 const $ = s => document.querySelector(s);
 const pwEl=$("#pw"), keyEl=$("#key"), langEl=$("#lang"), fmtEl=$("#fmt"), fileEl=$("#file"),
+      ucelEl=$("#ucel"), bataronCfg=$("#bataronCfg"), zapisUrlEl=$("#zapisUrl"),
       drop=$("#drop"), btn=$("#btn"), fileName=$("#fileName"),
       prog=$("#progress"), bar=$("#barFill"), status=$("#status"), errEl=$("#error"),
       result=$("#result"), transcript=$("#transcript"), resultMeta=$("#resultMeta"),
@@ -173,8 +191,30 @@ let selectedFile=null;
 // --- uložení/načtení přihlášení ---
 pwEl.value  = localStorage.getItem("app_pw")  || "";
 keyEl.value = localStorage.getItem("groq_key")|| "";
+zapisUrlEl.value = localStorage.getItem("zapis_url") || "";
+ucelEl.value = localStorage.getItem("ucel") || "plain";
 pwEl.addEventListener("input", ()=>{ localStorage.setItem("app_pw", pwEl.value.trim()); refresh(); });
 keyEl.addEventListener("input", ()=>{ localStorage.setItem("groq_key", keyEl.value.trim()); refresh(); });
+zapisUrlEl.addEventListener("input", ()=>localStorage.setItem("zapis_url", zapisUrlEl.value.trim()));
+function toggleUcel(){ bataronCfg.style.display = ucelEl.value==="bataron" ? "block" : "none";
+  localStorage.setItem("ucel", ucelEl.value); }
+ucelEl.addEventListener("change", toggleUcel); toggleUcel();
+
+function todayCz(){ const d=new Date(); return d.getDate()+"."+(d.getMonth()+1)+"."+d.getFullYear(); }
+
+// pošle přepis do Google Apps Scriptu -> vygeneruje zápis a vloží do Bataron Docs
+async function sendToBataron(text){
+  const url=zapisUrlEl.value.trim();
+  if(!url) throw new Error("Chybí Apps Script URL pro Bataron.");
+  const title=selectedFile ? selectedFile.name.replace(/\.[^.]+$/,"") : "";
+  const res=await fetch(url,{ method:"POST",
+    headers:{"Content-Type":"text/plain;charset=utf-8"},   // text/plain = žádný CORS preflight
+    body: JSON.stringify({ transcript:text, title, date:todayCz(), secret:pwEl.value.trim() }) });
+  const t=await res.text();
+  let j; try{ j=JSON.parse(t); }catch(e){ throw new Error("Neočekávaná odpověď scriptu: "+t.slice(0,150)); }
+  if(!j.ok) throw new Error(j.error||"Zápis se nepovedl.");
+  return j;
+}
 
 // --- výběr souboru ---
 drop.addEventListener("click", ()=>fileEl.click());
@@ -279,8 +319,20 @@ btn.addEventListener("click", async ()=>{
       (cfg.mode==="direct"?" · vlastní klíč":"");
     transcript.value=full;
     result.style.display="block";
-    setTimeout(()=>{ prog.style.display="none"; }, 800);
     result.scrollIntoView({behavior:"smooth"});
+
+    if(ucelEl.value==="bataron"){
+      status.textContent="Generuji Bataron zápis a zapisuji do Google Docs…"; bar.style.width="97%";
+      try{
+        await sendToBataron(full);
+        resultMeta.textContent += " · ✓ zapsáno do Bataron Docs";
+        toast("Zápis vložen do Google Docs");
+      }catch(e){
+        errEl.textContent="Přepis hotový, ale zápis do Docs selhal: "+e.message;
+      }
+    }
+    bar.style.width="100%";
+    setTimeout(()=>{ prog.style.display="none"; }, 800);
   }catch(e){
     prog.style.display="none";
     errEl.textContent="Chyba: "+e.message +
