@@ -64,6 +64,8 @@
   .err{color:var(--err);font-size:14px;margin-top:10px}
   details{margin-top:14px;font-size:13px;color:var(--muted)}
   summary{cursor:pointer;font-weight:600}
+  details.adv{margin-top:14px}
+  details.adv input{margin-top:8px}
 </style>
 </head>
 <body>
@@ -73,12 +75,19 @@
     <div class="sub">Vícejazyčný přepis audia a videa. Rychle, přímo v prohlížeči.</div>
   </header>
 
-  <!-- API klíč -->
+  <!-- přístup -->
   <div class="card">
-    <label for="key">Groq API klíč</label>
-    <input type="password" id="key" placeholder="gsk_..." autocomplete="off">
-    <div class="hint">Zadej jednou, uloží se jen ve tvém prohlížeči. Zdarma získáš na
-      <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>.</div>
+    <label for="pw">Heslo appky</label>
+    <input type="password" id="pw" placeholder="heslo, které jsi dostal" autocomplete="off">
+    <div class="hint">Zadej jednou, uloží se jen ve tvém prohlížeči.</div>
+
+    <details class="adv">
+      <summary>Pokročilé: mám vlastní Groq klíč</summary>
+      <input type="password" id="key" placeholder="gsk_..." autocomplete="off">
+      <div class="hint">Použij místo hesla vlastní klíč z
+        <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>
+        (přepis pak jde přímo z tvého prohlížeče na Groq).</div>
+    </details>
   </div>
 
   <!-- vstup -->
@@ -138,9 +147,9 @@
 
   <details>
     <summary>Jak to funguje &amp; soukromí</summary>
-    <p>Soubor se v tvém prohlížeči převede na 16 kHz mono, dlouhé nahrávky se rozdělí na části a pošlou přímo
-    na Groq (model Whisper large-v3-turbo), který vrátí text. Nic neprochází přes žádný cizí server kromě
-    Groqu. Klíč zůstává jen u tebe v prohlížeči.</p>
+    <p>Soubor se v tvém prohlížeči převede na 16 kHz mono, dlouhé nahrávky se rozdělí na části a přepíšou
+    modelem Whisper large-v3-turbo (Groq). Přes heslo jde přepis přes malý server, který drží klíč skrytý;
+    s vlastním klíčem jde přímo na Groq. Nahrávka neprochází žádným cizím úložištěm.</p>
   </details>
 </div>
 
@@ -148,19 +157,23 @@
 
 <script>
 const $ = s => document.querySelector(s);
-const keyEl=$("#key"), langEl=$("#lang"), fmtEl=$("#fmt"), fileEl=$("#file"),
+const pwEl=$("#pw"), keyEl=$("#key"), langEl=$("#lang"), fmtEl=$("#fmt"), fileEl=$("#file"),
       drop=$("#drop"), btn=$("#btn"), fileName=$("#fileName"),
       prog=$("#progress"), bar=$("#barFill"), status=$("#status"), errEl=$("#error"),
       result=$("#result"), transcript=$("#transcript"), resultMeta=$("#resultMeta"),
       toastEl=$("#toast");
 
 const GROQ_URL="https://api.groq.com/openai/v1/audio/transcriptions";
-const CHUNK_SEC=480;        // 8 min na kus (~15 MB WAV, pod Groq limitem 25 MB)
-const SR=16000;             // 16 kHz mono jako lokální recept
+const PROXY_URL="/api/transcribe";
+const SR=16000;                 // 16 kHz mono jako lokální recept
+const CHUNK_PROXY=100;          // 100 s ≈ 3,2 MB WAV (pod Vercel limitem 4,5 MB)
+const CHUNK_DIRECT=480;         // 8 min ≈ 15 MB (pod Groq limitem 25 MB)
 let selectedFile=null;
 
-// --- API klíč: uložení / načtení ---
-keyEl.value = localStorage.getItem("groq_key") || "";
+// --- uložení/načtení přihlášení ---
+pwEl.value  = localStorage.getItem("app_pw")  || "";
+keyEl.value = localStorage.getItem("groq_key")|| "";
+pwEl.addEventListener("input", ()=>{ localStorage.setItem("app_pw", pwEl.value.trim()); refresh(); });
 keyEl.addEventListener("input", ()=>{ localStorage.setItem("groq_key", keyEl.value.trim()); refresh(); });
 
 // --- výběr souboru ---
@@ -171,12 +184,12 @@ fileEl.addEventListener("change", e=>{ if(e.target.files[0]) setFile(e.target.fi
 drop.addEventListener("drop", e=>{ if(e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); });
 
 function setFile(f){ selectedFile=f; fileName.textContent="📄 "+f.name; refresh(); }
-function refresh(){ btn.disabled = !(selectedFile && keyEl.value.trim()); }
+function refresh(){ btn.disabled = !(selectedFile && (pwEl.value.trim() || keyEl.value.trim())); }
 
 function toast(msg){ toastEl.textContent=msg; toastEl.classList.add("show");
   setTimeout(()=>toastEl.classList.remove("show"),1800); }
 
-// --- převod AudioBuffer na 16 kHz mono WAV (Blob) ---
+// --- AudioBuffer(mono float) -> 16 kHz WAV Blob ---
 function encodeWAV(samples, sampleRate){
   const buf=new ArrayBuffer(44+samples.length*2);
   const view=new DataView(buf);
@@ -204,33 +217,51 @@ async function decodeToMono16k(file){
   const src=off.createBufferSource();
   src.buffer=decoded; src.connect(off.destination); src.start();
   const rendered=await off.startRendering();
-  return rendered.getChannelData(0); // Float32Array mono @16k
+  return rendered.getChannelData(0);
 }
 
-// --- jedno volání Groq ---
-async function transcribeChunk(blob, key, model, lang){
-  const fd=new FormData();
-  fd.append("file", blob, "chunk.wav");
-  fd.append("model", model);
-  fd.append("response_format", "text");
-  if(lang && lang!=="auto") fd.append("language", lang);
-  const res=await fetch(GROQ_URL,{ method:"POST", headers:{Authorization:"Bearer "+key}, body:fd });
-  if(!res.ok){
-    let msg=res.status+" "+res.statusText;
-    try{ const j=await res.json(); if(j.error&&j.error.message) msg=j.error.message; }catch(e){}
-    throw new Error(msg);
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+// --- jedno volání (proxy nebo přímo), s retry na rate-limit ---
+async function transcribeChunk(blob, cfg){
+  for(let attempt=0; attempt<4; attempt++){
+    let res;
+    if(cfg.mode==="direct"){
+      const fd=new FormData();
+      fd.append("file", blob, "chunk.wav");
+      fd.append("model", cfg.model);
+      fd.append("response_format", "text");
+      if(cfg.lang && cfg.lang!=="auto") fd.append("language", cfg.lang);
+      res=await fetch(GROQ_URL,{method:"POST",headers:{Authorization:"Bearer "+cfg.key},body:fd});
+    }else{
+      res=await fetch(PROXY_URL,{method:"POST",
+        headers:{"x-app-password":cfg.pw,"x-lang":cfg.lang,"x-model":cfg.model,"content-type":"application/octet-stream"},
+        body:blob});
+    }
+    if(res.status===429){ await sleep(2500*(attempt+1)); continue; }   // rate limit -> počkej
+    if(cfg.mode==="proxy" && [404,405,501].includes(res.status))
+      throw new Error("Tato adresa nemá server pro heslo (běží jen staticky). Otevři sekci Pokročilé a zadej vlastní Groq klíč, nebo použij nasazenou verzi na Vercelu.");
+    if(!res.ok){
+      let msg=res.status+" "+res.statusText;
+      const t=await res.text(); try{ const j=JSON.parse(t); if(j.error) msg=j.error.message||j.error; }catch(e){ if(t) msg=t; }
+      throw new Error(msg);
+    }
+    return (await res.text()).trim();
   }
-  return (await res.text()).trim();
+  throw new Error("Groq je přetížený (rate limit), zkus to za chvíli.");
 }
 
 // --- hlavní běh ---
 btn.addEventListener("click", async ()=>{
-  const key=keyEl.value.trim(), model=fmtEl.value, lang=langEl.value;
+  const key=keyEl.value.trim(), pw=pwEl.value.trim(), model=fmtEl.value, lang=langEl.value;
+  const cfg = key ? {mode:"direct", key, model, lang} : {mode:"proxy", pw, model, lang};
+  const chunkSec = cfg.mode==="direct" ? CHUNK_DIRECT : CHUNK_PROXY;
+
   errEl.textContent=""; result.style.display="none"; btn.disabled=true;
   prog.style.display="block"; bar.style.width="4%"; status.textContent="Načítám a převádím audio…";
   try{
     const mono=await decodeToMono16k(selectedFile);
-    const total=mono.length, chunkLen=CHUNK_SEC*SR;
+    const total=mono.length, chunkLen=chunkSec*SR;
     const nChunks=Math.max(1, Math.ceil(total/chunkLen));
     let parts=[];
     for(let i=0;i<nChunks;i++){
@@ -238,21 +269,22 @@ btn.addEventListener("click", async ()=>{
       const wav=encodeWAV(slice, SR);
       status.textContent = nChunks>1 ? `Přepisuji část ${i+1}/${nChunks}…` : "Přepisuji…";
       bar.style.width = (8 + (i/nChunks)*88)+"%";
-      const text=await transcribeChunk(wav, key, model, lang);
-      parts.push(text);
+      parts.push(await transcribeChunk(wav, cfg));
       bar.style.width = (8 + ((i+1)/nChunks)*88)+"%";
     }
     const full=parts.join("\n").replace(/\n{3,}/g,"\n\n").trim();
     bar.style.width="100%"; status.textContent="Hotovo ✓";
     const words=full.split(/\s+/).filter(Boolean).length;
-    resultMeta.textContent=`${words} slov · model ${model}` + (lang==="auto"?" · auto-detekce jazyka":"");
+    resultMeta.textContent=`${words} slov · ${model}` + (lang==="auto"?" · auto-detekce":"") +
+      (cfg.mode==="direct"?" · vlastní klíč":"");
     transcript.value=full;
     result.style.display="block";
     setTimeout(()=>{ prog.style.display="none"; }, 800);
     result.scrollIntoView({behavior:"smooth"});
   }catch(e){
     prog.style.display="none";
-    errEl.textContent="Chyba: "+e.message + (String(e.message).includes("decode")?" — tenhle formát prohlížeč neumí dekódovat, zkus mp3/m4a/wav.":"");
+    errEl.textContent="Chyba: "+e.message +
+      (String(e.message).includes("decode")?" — tenhle formát prohlížeč neumí dekódovat, zkus mp3/m4a/wav.":"");
   }finally{ refresh(); }
 });
 
