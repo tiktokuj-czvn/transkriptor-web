@@ -22,12 +22,18 @@ Lidem pak pošleš URL + heslo. Přepisují bez vlastního klíče, platíš ty 
 
 - `index.html` — celá appka (UI + logika). V prohlížeči převede vstup na 16 kHz mono a dlouhé nahrávky rozseká (100 s/kus přes proxy kvůli 4,5 MB limitu Vercelu; 8 min přes vlastní klíč).
 - `api/transcribe.js` — Vercel serverless proxy: ověří heslo (`APP_PASSWORD`), přepošle audio na Groq s klíčem (`GROQ_API_KEY`). Bez npm závislostí.
+- `api/bataron.js` — Vercel serverless proxy pro zápis do Google Apps Scriptu. Obchází CORS problém v prohlížeči a ověřuje stejné heslo appky.
 - `vercel.json` — konfigurace funkce.
 
 ## GitHub Pages verze
 
 Repo má zapnuté i GitHub Pages (<https://tiktokuj-czvn.github.io/transkriptor-web/>). Tam neběží server,
 takže funguje jen režim s **vlastním Groq klíčem** (přes „Pokročilé"). Sdílené heslo vyžaduje Vercel.
+Bataron zápis do Google Docs také vyžaduje Vercel, protože jde přes `/api/bataron`.
+
+Stejné platí pro lokální statický náhled přes `python -m http.server`: stránka se otevře, ale režim
+se sdíleným heslem nemá `/api/transcribe`. Pokud nemáš vlastní Groq klíč, otevři appku na nasazené
+Vercel URL. Vlastní Groq klíč je jen pokročilá náhradní možnost pro statický test.
 
 ## Limity
 

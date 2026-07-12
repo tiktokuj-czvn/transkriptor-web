@@ -6,95 +6,209 @@
 <title>Transkriptor — vícejazyčný přepis audia</title>
 <style>
   :root{
-    --bg:#f7f7f8; --card:#ffffff; --ink:#1a1a1e; --muted:#6b6b76;
-    --line:#e6e6ea; --accent:#4f46e5; --accent-ink:#ffffff;
-    --ok:#0f9d58; --err:#d93025; --drop:#f0f0ff;
-    --radius:14px; --shadow:0 1px 3px rgba(0,0,0,.06),0 8px 24px rgba(0,0,0,.05);
+    --bg:#f6f6f8; --card:#ffffff; --ink:#16161a; --muted:#6b6b76; --faint:#9a9aa6;
+    --line:#e7e7ec; --line2:#dcdce3; --accent:#5b54e6; --accent-ink:#ffffff;
+    --accent-soft:#efeefe; --ok:#0f9d58; --err:#d93025;
+    --radius:16px; --radius-sm:11px;
+    --shadow:0 1px 2px rgba(20,20,40,.04),0 10px 30px rgba(20,20,50,.06);
+    --shadow-lg:0 8px 40px rgba(30,30,70,.12);
   }
   @media (prefers-color-scheme:dark){
     :root{
-      --bg:#0f0f12; --card:#17171c; --ink:#ececf1; --muted:#9a9aa6;
-      --line:#2a2a32; --accent:#7c74ff; --accent-ink:#0f0f12;
-      --drop:#1c1c28; --shadow:0 1px 3px rgba(0,0,0,.4),0 8px 30px rgba(0,0,0,.4);
+      --bg:#0d0d10; --card:#161619; --ink:#ececf1; --muted:#9a9aa6; --faint:#6d6d78;
+      --line:#26262d; --line2:#31313a; --accent:#8a82ff; --accent-ink:#0d0d10;
+      --accent-soft:#1e1c33; --ok:#3ecf8e;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);
+      --shadow-lg:0 8px 40px rgba(0,0,0,.5);
     }
   }
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     background:var(--bg);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
-  .wrap{max-width:720px;margin:0 auto;padding:32px 20px 80px}
-  header{text-align:center;margin-bottom:28px}
-  h1{font-size:26px;margin:0 0 6px;letter-spacing:-.02em}
-  .sub{color:var(--muted);font-size:15px}
+  .wrap{max-width:660px;margin:0 auto;padding:26px 20px 90px}
+
+  /* header */
+  header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:22px}
+  .brand h1{font-size:22px;margin:0;letter-spacing:-.02em;display:flex;align-items:center;gap:8px}
+  .brand .sub{color:var(--muted);font-size:14px;margin-top:3px}
+  .badge{display:inline-flex;align-items:center;gap:5px;margin-top:9px;font-size:12px;color:var(--muted);
+    background:var(--card);border:1px solid var(--line);border-radius:99px;padding:4px 10px}
+  .gear{flex:none;width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:var(--card);
+    color:var(--muted);font-size:18px;display:grid;place-items:center;cursor:pointer;transition:.15s}
+  .gear:hover{color:var(--ink);border-color:var(--line2)}
+  .gear.on{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
-    box-shadow:var(--shadow);padding:22px;margin-bottom:18px}
-  label{display:block;font-size:13px;font-weight:600;margin-bottom:7px;color:var(--muted)}
+    box-shadow:var(--shadow);padding:20px;margin-bottom:16px}
+
+  /* settings panel */
+  #settings{display:none}
+  #settings.open{display:block}
+  label{display:block;font-size:12.5px;font-weight:600;margin-bottom:6px;color:var(--muted)}
   input[type=password],input[type=text],select{
-    width:100%;padding:11px 13px;font-size:15px;border:1px solid var(--line);border-radius:10px;
-    background:var(--bg);color:var(--ink);outline:none;transition:border-color .15s}
-  input:focus,select:focus{border-color:var(--accent)}
-  .row{display:flex;gap:12px;flex-wrap:wrap}
-  .row>div{flex:1;min-width:180px}
-  .hint{font-size:12px;color:var(--muted);margin-top:6px}
+    width:100%;padding:11px 13px;font-size:15px;border:1px solid var(--line2);border-radius:var(--radius-sm);
+    background:var(--bg);color:var(--ink);outline:none;transition:border-color .15s,box-shadow .15s}
+  input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .hint{font-size:12px;color:var(--faint);margin-top:6px}
   .hint a{color:var(--accent)}
-  #drop{border:2px dashed var(--line);border-radius:var(--radius);padding:38px 20px;text-align:center;
-    cursor:pointer;transition:.15s;background:var(--card)}
-  #drop:hover,#drop.over{border-color:var(--accent);background:var(--drop)}
-  #drop .big{font-size:16px;font-weight:600;margin-bottom:4px}
+  .fld{margin-bottom:14px}
+  .fld:last-child{margin-bottom:0}
+  details.adv{margin-top:4px}
+  details.adv summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--accent);list-style:none}
+  details.adv summary::-webkit-details-marker{display:none}
+  details.adv input{margin-top:8px}
+
+  /* hero drop */
+  #drop{position:relative;border:2px dashed var(--line2);border-radius:var(--radius);
+    padding:46px 22px;text-align:center;cursor:pointer;transition:.18s;background:var(--card);
+    box-shadow:var(--shadow)}
+  #drop:hover{border-color:var(--accent);background:var(--accent-soft)}
+  #drop.over{border-color:var(--accent);background:var(--accent-soft);transform:scale(1.008)}
+  #drop .ico{font-size:34px;line-height:1;margin-bottom:12px;filter:grayscale(.1)}
+  #drop .big{font-size:17px;font-weight:650;margin-bottom:4px}
   #drop .small{font-size:13px;color:var(--muted)}
-  #fileName{margin-top:12px;font-size:14px;font-weight:600;color:var(--accent)}
-  button{font-family:inherit;font-size:15px;font-weight:600;border:none;border-radius:10px;cursor:pointer;
-    padding:12px 18px;transition:.15s;background:var(--accent);color:var(--accent-ink)}
-  button:disabled{opacity:.45;cursor:not-allowed}
-  button.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
-  .actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
-  .go{width:100%;padding:14px;font-size:16px}
+  #drop.has-file{padding:0;border-style:solid;border-color:var(--line);cursor:default;overflow:hidden}
+  .prompt{display:block}
+  #drop.has-file .prompt{display:none}
+
+  /* file card */
+  .filecard{display:none;text-align:left;padding:16px 18px}
+  #drop.has-file .filecard{display:block}
+  .filecard .top{display:flex;align-items:center;gap:12px}
+  .filecard .fico{flex:none;width:42px;height:42px;border-radius:11px;background:var(--accent-soft);
+    color:var(--accent);display:grid;place-items:center;font-size:20px}
+  .filecard .fname{font-weight:650;font-size:15px;word-break:break-word}
+  .filecard .fmeta{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .filecard .rm{flex:none;margin-left:auto;width:30px;height:30px;border-radius:8px;border:1px solid var(--line);
+    background:transparent;color:var(--muted);cursor:pointer;font-size:15px;display:grid;place-items:center;transition:.15s}
+  .filecard .rm:hover{color:var(--err);border-color:var(--err)}
+  .filecard audio{width:100%;margin-top:12px;height:34px}
+
+  /* segmented účel */
+  .seg{display:flex;gap:8px;margin-top:2px}
+  .seg button{flex:1;padding:13px 12px;border-radius:var(--radius-sm);border:1px solid var(--line2);
+    background:var(--card);color:var(--ink);font-weight:600;font-size:14px;cursor:pointer;transition:.15s;
+    display:flex;align-items:center;justify-content:center;gap:7px}
+  .seg button .e{font-size:16px}
+  .seg button:hover{border-color:var(--accent)}
+  .seg button.sel{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+
+  /* secondary options row */
+  .opts{display:flex;gap:12px;flex-wrap:wrap;margin-top:16px}
+  .opts>div{flex:1;min-width:150px}
+
+  .go{width:100%;padding:15px;font-size:16px;font-weight:700;border:none;border-radius:var(--radius-sm);
+    cursor:pointer;background:var(--accent);color:var(--accent-ink);margin-top:18px;transition:.15s;
+    box-shadow:0 4px 14px rgba(91,84,230,.28)}
+  .go:hover:not(:disabled){filter:brightness(1.05);transform:translateY(-1px)}
+  .go:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;transform:none}
+  #btnHint{text-align:center;font-size:12.5px;color:var(--faint);margin-top:9px}
+
+  /* progress */
   #progress{display:none;margin-top:18px}
   .bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden}
-  .bar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s;border-radius:99px}
-  #status{font-size:13px;color:var(--muted);margin-top:8px;text-align:center}
+  .bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),#9a93ff);
+    transition:width .35s ease;border-radius:99px}
+  #status{font-size:13px;color:var(--muted);margin-top:9px;text-align:center;font-weight:600}
+  .err{color:var(--err);font-size:13.5px;margin-top:12px;background:rgba(217,48,37,.07);
+    border:1px solid rgba(217,48,37,.2);border-radius:10px;padding:10px 12px;display:none}
+  .err.show{display:block}
+
+  /* result */
   #result{display:none}
-  #transcript{width:100%;min-height:280px;padding:16px;font-size:15px;line-height:1.65;
-    border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);resize:vertical;
-    font-family:inherit}
-  .meta{font-size:13px;color:var(--muted);margin-bottom:10px}
-  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
-    background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:10px;font-size:14px;
-    transition:.25s;pointer-events:none}
+  #result h3{margin:0 0 4px;font-size:16px;display:flex;align-items:center;gap:8px}
+  .meta{font-size:12.5px;color:var(--muted);margin-bottom:14px}
+  #transcript{width:100%;min-height:300px;padding:16px;font-size:15px;line-height:1.7;
+    border:1px solid var(--line2);border-radius:var(--radius-sm);background:var(--bg);color:var(--ink);
+    resize:vertical;font-family:inherit}
+  .actions{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+  .actions button{font-family:inherit;font-size:14px;font-weight:600;border-radius:10px;cursor:pointer;
+    padding:11px 16px;border:1px solid var(--line2);background:var(--card);color:var(--ink);transition:.15s}
+  .actions button:hover{border-color:var(--accent);color:var(--accent)}
+  .actions button.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--ink);color:var(--bg);padding:11px 20px;border-radius:11px;font-size:14px;font-weight:600;
+    transition:.25s;pointer-events:none;box-shadow:var(--shadow-lg);z-index:50}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-  .err{color:var(--err);font-size:14px;margin-top:10px}
-  details{margin-top:14px;font-size:13px;color:var(--muted)}
-  summary{cursor:pointer;font-weight:600}
-  details.adv{margin-top:14px}
-  details.adv input{margin-top:8px}
+
+  footer{margin-top:22px}
+  details.info summary{cursor:pointer;font-weight:600;font-size:13px;color:var(--muted);list-style:none}
+  details.info summary::-webkit-details-marker{display:none}
+  details.info summary::before{content:"ⓘ ";opacity:.6}
+  details.info p{font-size:13px;color:var(--muted);margin:10px 2px 0}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1>🎧 Transkriptor</h1>
-    <div class="sub">Vícejazyčný přepis audia a videa. Rychle, přímo v prohlížeči.</div>
+    <div class="brand">
+      <h1><span>🎧</span> Transkriptor</h1>
+      <div class="sub">Vícejazyčný přepis audia a videa.</div>
+      <div class="badge">🔒 Běží u tebe v prohlížeči</div>
+    </div>
+    <button class="gear" id="gear" title="Nastavení" aria-label="Nastavení">⚙</button>
   </header>
 
-  <!-- přístup -->
-  <div class="card">
-    <label for="pw">Heslo appky</label>
-    <input type="password" id="pw" placeholder="heslo, které jsi dostal" autocomplete="off">
-    <div class="hint">Zadej jednou, uloží se jen ve tvém prohlížeči.</div>
-
-    <details class="adv">
-      <summary>Pokročilé: mám vlastní Groq klíč</summary>
-      <input type="password" id="key" placeholder="gsk_..." autocomplete="off">
-      <div class="hint">Použij místo hesla vlastní klíč z
-        <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>
-        (přepis pak jde přímo z tvého prohlížeče na Groq).</div>
-    </details>
+  <!-- NASTAVENÍ (schované, otevírá ozubené kolo) -->
+  <div class="card" id="settings">
+    <div class="fld">
+      <label for="pw">Heslo appky</label>
+      <input type="password" id="pw" placeholder="heslo, které jsi dostal" autocomplete="off">
+      <div class="hint">Zadej jednou, uloží se jen ve tvém prohlížeči.</div>
+      <div class="hint" id="serverHint"></div>
+      <details class="adv">
+        <summary>Mám vlastní Groq klíč</summary>
+        <input type="password" id="key" placeholder="gsk_..." autocomplete="off">
+        <div class="hint">Náhradní možnost místo hesla — klíč z
+          <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>.
+          Přepis pak jde přímo z tvého prohlížeče na Groq.</div>
+      </details>
+    </div>
+    <div class="fld" id="bataronCfg" style="display:none">
+      <label for="zapisUrl">Apps Script URL (Bataron)</label>
+      <input type="text" id="zapisUrl" placeholder="https://script.google.com/macros/s/…/exec">
+      <div class="hint">Z nasazení Apps Scriptu (viz apps-script/NAVOD.md). Zápis se po přepisu
+        vytvoří sám a vloží do dokumentu Bataron.</div>
+    </div>
   </div>
 
-  <!-- vstup -->
+  <!-- HERO: vstup -->
+  <div id="drop">
+    <div class="prompt">
+      <div class="ico">⤓</div>
+      <div class="big">Přetáhni sem nahrávku</div>
+      <div class="small">nebo klikni a vyber soubor — audio i video (m4a, mp3, wav, mp4, mov…)</div>
+    </div>
+    <div class="filecard">
+      <div class="top">
+        <div class="fico">🎵</div>
+        <div>
+          <div class="fname" id="fileName"></div>
+          <div class="fmeta" id="fileMeta"></div>
+        </div>
+        <button class="rm" id="removeFile" title="Odebrat" aria-label="Odebrat soubor">✕</button>
+      </div>
+      <audio id="audioPreview" controls preload="metadata" style="display:none"></audio>
+    </div>
+  </div>
+  <input type="file" id="file" accept="audio/*,video/*" hidden>
+
+  <!-- akce -->
   <div class="card">
-    <div class="row" style="margin-bottom:16px">
+    <label>Kam s přepisem</label>
+    <div class="seg" id="seg">
+      <button data-ucel="plain" class="sel"><span class="e">📄</span> Jen přepis</button>
+      <button data-ucel="bataron"><span class="e">🍜</span> Bataron → Docs</button>
+    </div>
+    <select id="ucel" hidden>
+      <option value="plain">Jen přepis</option>
+      <option value="bataron">Bataron zápis → Google Docs</option>
+    </select>
+
+    <div class="opts">
       <div>
-        <label for="lang">Jazyk nahrávky</label>
+        <label for="lang">Jazyk</label>
         <select id="lang">
           <option value="auto">Auto (rozpozná sám)</option>
           <option value="cs">Čeština</option>
@@ -119,31 +233,8 @@
       </div>
     </div>
 
-    <div class="row" style="margin-bottom:16px">
-      <div>
-        <label for="ucel">Účel</label>
-        <select id="ucel">
-          <option value="plain">Jen přepis</option>
-          <option value="bataron">Bataron zápis → Google Docs</option>
-        </select>
-      </div>
-    </div>
-
-    <div id="bataronCfg" style="display:none;margin-bottom:16px">
-      <label for="zapisUrl">Apps Script URL (Bataron)</label>
-      <input type="text" id="zapisUrl" placeholder="https://script.google.com/macros/s/…/exec">
-      <div class="hint">Z nasazení Apps Scriptu (viz apps-script/NAVOD.md). Uloží se v prohlížeči.
-        Zápis se vytvoří automaticky po přepisu a vloží do dokumentu Bataron.</div>
-    </div>
-
-    <div id="drop">
-      <div class="big">Přetáhni sem audio nebo video</div>
-      <div class="small">nebo klikni a vyber soubor — m4a, mp3, wav, mp4, mov…</div>
-      <div id="fileName"></div>
-    </div>
-    <input type="file" id="file" accept="audio/*,video/*" hidden>
-
     <button class="go" id="btn" disabled>Přepsat</button>
+    <div id="btnHint">Vyber soubor a zadej heslo appky.</div>
 
     <div id="progress">
       <div class="bar"><i id="barFill"></i></div>
@@ -154,20 +245,23 @@
 
   <!-- výsledek -->
   <div class="card" id="result">
+    <h3>✓ Přepis hotový</h3>
     <div class="meta" id="resultMeta"></div>
     <textarea id="transcript" spellcheck="false"></textarea>
     <div class="actions">
-      <button id="copy">📋 Kopírovat</button>
-      <button class="ghost" id="download">⬇︎ Stáhnout .txt</button>
+      <button class="primary" id="copy">📋 Kopírovat</button>
+      <button id="download">⬇︎ Stáhnout .txt</button>
     </div>
   </div>
 
-  <details>
-    <summary>Jak to funguje &amp; soukromí</summary>
-    <p>Soubor se v tvém prohlížeči převede na 16 kHz mono, dlouhé nahrávky se rozdělí na části a přepíšou
-    modelem Whisper large-v3-turbo (Groq). Přes heslo jde přepis přes malý server, který drží klíč skrytý;
-    s vlastním klíčem jde přímo na Groq. Nahrávka neprochází žádným cizím úložištěm.</p>
-  </details>
+  <footer>
+    <details class="info">
+      <summary>Jak to funguje &amp; soukromí</summary>
+      <p>Soubor se v tvém prohlížeči převede na 16 kHz mono, dlouhé nahrávky se rozdělí na části a přepíšou
+      modelem Whisper (Groq). Přes heslo jde přepis přes malý server, který drží klíč skrytý; s vlastním
+      klíčem jde přímo na Groq. Nahrávka neprochází žádným cizím úložištěm.</p>
+    </details>
+  </footer>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -176,17 +270,20 @@
 const $ = s => document.querySelector(s);
 const pwEl=$("#pw"), keyEl=$("#key"), langEl=$("#lang"), fmtEl=$("#fmt"), fileEl=$("#file"),
       ucelEl=$("#ucel"), bataronCfg=$("#bataronCfg"), zapisUrlEl=$("#zapisUrl"),
-      drop=$("#drop"), btn=$("#btn"), fileName=$("#fileName"),
-      prog=$("#progress"), bar=$("#barFill"), status=$("#status"), errEl=$("#error"),
-      result=$("#result"), transcript=$("#transcript"), resultMeta=$("#resultMeta"),
-      toastEl=$("#toast");
+      drop=$("#drop"), btn=$("#btn"), fileName=$("#fileName"), fileMeta=$("#fileMeta"),
+      audioPreview=$("#audioPreview"), removeFile=$("#removeFile"),
+      serverHint=$("#serverHint"), btnHint=$("#btnHint"), prog=$("#progress"), bar=$("#barFill"),
+      status=$("#status"), errEl=$("#error"), result=$("#result"), transcript=$("#transcript"),
+      resultMeta=$("#resultMeta"), toastEl=$("#toast"), gear=$("#gear"), settings=$("#settings"), seg=$("#seg");
 
 const GROQ_URL="https://api.groq.com/openai/v1/audio/transcriptions";
 const PROXY_URL="/api/transcribe";
+const BATARON_PROXY_URL="/api/bataron";
 const SR=16000;                 // 16 kHz mono jako lokální recept
 const CHUNK_PROXY=100;          // 100 s ≈ 3,2 MB WAV (pod Vercel limitem 4,5 MB)
 const CHUNK_DIRECT=480;         // 8 min ≈ 15 MB (pod Groq limitem 25 MB)
 let selectedFile=null;
+let proxyState="checking";      // checking | available | unavailable
 
 // --- uložení/načtení přihlášení ---
 pwEl.value  = localStorage.getItem("app_pw")  || "";
@@ -195,21 +292,46 @@ zapisUrlEl.value = localStorage.getItem("zapis_url") || "";
 ucelEl.value = localStorage.getItem("ucel") || "plain";
 pwEl.addEventListener("input", ()=>{ localStorage.setItem("app_pw", pwEl.value.trim()); refresh(); });
 keyEl.addEventListener("input", ()=>{ localStorage.setItem("groq_key", keyEl.value.trim()); refresh(); });
-zapisUrlEl.addEventListener("input", ()=>localStorage.setItem("zapis_url", zapisUrlEl.value.trim()));
-function toggleUcel(){ bataronCfg.style.display = ucelEl.value==="bataron" ? "block" : "none";
-  localStorage.setItem("ucel", ucelEl.value); }
-ucelEl.addEventListener("change", toggleUcel); toggleUcel();
+zapisUrlEl.addEventListener("input", ()=>{ localStorage.setItem("zapis_url", zapisUrlEl.value.trim()); refresh(); });
+
+// --- nastavení (ozubené kolo) ---
+function openSettings(on){ settings.classList.toggle("open", on); gear.classList.toggle("on", on); }
+gear.addEventListener("click", ()=> openSettings(!settings.classList.contains("open")) );
+// první spuštění bez konfigurace -> nastavení otevřené
+if(!pwEl.value.trim() && !keyEl.value.trim()) openSettings(true);
+
+// --- segmentovaný Účel ---
+function selectUcel(val){
+  ucelEl.value=val;
+  [...seg.children].forEach(b=>b.classList.toggle("sel", b.dataset.ucel===val));
+  bataronCfg.style.display = val==="bataron" ? "block" : "none";
+  localStorage.setItem("ucel", val);
+  if(val==="bataron" && !zapisUrlEl.value.trim()) openSettings(true);
+  refresh();
+}
+seg.addEventListener("click", e=>{ const b=e.target.closest("button"); if(b) selectUcel(b.dataset.ucel); });
+selectUcel(ucelEl.value);
 
 function todayCz(){ const d=new Date(); return d.getDate()+"."+(d.getMonth()+1)+"."+d.getFullYear(); }
+function fmtSize(b){ return b>=1048576 ? (b/1048576).toFixed(1)+" MB" : Math.round(b/1024)+" kB"; }
+function fmtDur(s){ if(!isFinite(s)||s<=0) return ""; s=Math.round(s); const m=Math.floor(s/60), r=s%60;
+  return m>0 ? m+" min "+(r<10?"0":"")+r+" s" : r+" s"; }
 
 // pošle přepis do Google Apps Scriptu -> vygeneruje zápis a vloží do Bataron Docs
 async function sendToBataron(text){
   const url=zapisUrlEl.value.trim();
   if(!url) throw new Error("Chybí Apps Script URL pro Bataron.");
   const title=selectedFile ? selectedFile.name.replace(/\.[^.]+$/,"") : "";
-  const res=await fetch(url,{ method:"POST",
-    headers:{"Content-Type":"text/plain;charset=utf-8"},   // text/plain = žádný CORS preflight
-    body: JSON.stringify({ transcript:text, title, date:todayCz(), secret:pwEl.value.trim() }) });
+  let res;
+  try{
+    res=await fetch(BATARON_PROXY_URL,{ method:"POST",
+      headers:{"Content-Type":"application/json","x-app-password":pwEl.value.trim()},
+      body: JSON.stringify({ url, transcript:text, title, date:todayCz() }) });
+  }catch(e){
+    throw new Error("Nejde se připojit k serveru pro Bataron zápis. Otevři Vercel verzi appky; statická/GitHub Pages verze neumí zapisovat do Google Docs.");
+  }
+  if([404,405,501].includes(res.status))
+    throw new Error("Tahle adresa nemá server pro Bataron zápis. Použij Vercel verzi appky, ne GitHub Pages ani lokálně otevřený soubor.");
   const t=await res.text();
   let j; try{ j=JSON.parse(t); }catch(e){ throw new Error("Neočekávaná odpověď scriptu: "+t.slice(0,150)); }
   if(!j.ok) throw new Error(j.error||"Zápis se nepovedl.");
@@ -217,17 +339,76 @@ async function sendToBataron(text){
 }
 
 // --- výběr souboru ---
-drop.addEventListener("click", ()=>fileEl.click());
+drop.addEventListener("click", ()=>{ if(!drop.classList.contains("has-file")) fileEl.click(); });
 fileEl.addEventListener("change", e=>{ if(e.target.files[0]) setFile(e.target.files[0]); });
 ["dragover","dragenter"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("over");}));
 ["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("over");}));
 drop.addEventListener("drop", e=>{ if(e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); });
+removeFile.addEventListener("click", e=>{ e.stopPropagation(); clearFile(); });
 
-function setFile(f){ selectedFile=f; fileName.textContent="📄 "+f.name; refresh(); }
-function refresh(){ btn.disabled = !(selectedFile && (pwEl.value.trim() || keyEl.value.trim())); }
+function setFile(f){
+  selectedFile=f;
+  drop.classList.add("has-file");
+  fileName.textContent=f.name;
+  fileMeta.textContent=fmtSize(f.size);
+  const isAudio=(f.type||"").startsWith("audio") || /\.(m4a|mp3|wav|ogg|flac|opus|aac)$/i.test(f.name);
+  if(isAudio){
+    const url=URL.createObjectURL(f);
+    audioPreview.src=url; audioPreview.style.display="block";
+    audioPreview.onloadedmetadata=()=>{ const d=fmtDur(audioPreview.duration);
+      if(d) fileMeta.textContent=d+" · "+fmtSize(f.size); };
+  }else{ audioPreview.style.display="none"; audioPreview.removeAttribute("src"); }
+  errEl.classList.remove("show"); result.style.display="none";
+  refresh();
+}
+function clearFile(){
+  selectedFile=null; fileEl.value="";
+  drop.classList.remove("has-file");
+  audioPreview.pause(); audioPreview.removeAttribute("src"); audioPreview.style.display="none";
+  refresh();
+}
+
+function refresh(){
+  const needsBataron = ucelEl.value==="bataron";
+  const hasPw = !!pwEl.value.trim();
+  const hasKey = !!keyEl.value.trim();
+  const hasTranscribeAuth = hasPw || hasKey;
+  const hasBataronAuth = pwEl.value.trim() && zapisUrlEl.value.trim();
+  const proxyNeededButMissing = selectedFile && hasPw && !hasKey && proxyState==="unavailable";
+  btn.disabled = !(selectedFile && hasTranscribeAuth) || proxyNeededButMissing;
+  serverHint.textContent = proxyState==="unavailable"
+    ? "Tahle lokální/statická adresa nemá server pro heslo appky. Pokud nemáš vlastní Groq klíč, otevři nasazenou Vercel URL."
+    : "";
+
+  if(!selectedFile){
+    btnHint.textContent = "Vyber nebo přetáhni audio/video soubor.";
+  }else if(!hasTranscribeAuth){
+    btnHint.innerHTML = "Zadej heslo appky v ⚙ nastavení.";
+  }else if(proxyNeededButMissing){
+    btnHint.textContent = "Tahle adresa neumí použít heslo appky. Otevři nasazenou Vercel URL.";
+  }else if(selectedFile && hasPw && !hasKey && proxyState==="checking"){
+    btnHint.textContent = "Kontroluji server pro heslo…";
+  }else if(needsBataron && !hasBataronAuth){
+    btnHint.textContent = "Přepis půjde spustit; pro zápis do Docs doplň heslo a Apps Script URL v ⚙ nastavení.";
+  }else{
+    btnHint.textContent = needsBataron ? "Připraveno: přepis + Bataron zápis do Docs." : "Připraveno k přepisu.";
+  }
+}
+
+async function detectProxy(){
+  try{
+    const res = await fetch(PROXY_URL,{method:"GET",cache:"no-store"});
+    proxyState = res.status===405 ? "available" : "unavailable";
+  }catch(e){
+    proxyState = "unavailable";
+  }
+  refresh();
+}
 
 function toast(msg){ toastEl.textContent=msg; toastEl.classList.add("show");
   setTimeout(()=>toastEl.classList.remove("show"),1800); }
+
+function showErr(msg){ errEl.textContent=msg; errEl.classList.add("show"); }
 
 // --- AudioBuffer(mono float) -> 16 kHz WAV Blob ---
 function encodeWAV(samples, sampleRate){
@@ -266,21 +447,30 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function transcribeChunk(blob, cfg){
   for(let attempt=0; attempt<4; attempt++){
     let res;
-    if(cfg.mode==="direct"){
-      const fd=new FormData();
-      fd.append("file", blob, "chunk.wav");
-      fd.append("model", cfg.model);
-      fd.append("response_format", "text");
-      if(cfg.lang && cfg.lang!=="auto") fd.append("language", cfg.lang);
-      res=await fetch(GROQ_URL,{method:"POST",headers:{Authorization:"Bearer "+cfg.key},body:fd});
-    }else{
-      res=await fetch(PROXY_URL,{method:"POST",
-        headers:{"x-app-password":cfg.pw,"x-lang":cfg.lang,"x-model":cfg.model,"content-type":"application/octet-stream"},
-        body:blob});
+    try{
+      if(cfg.mode==="direct"){
+        const fd=new FormData();
+        fd.append("file", blob, "chunk.wav");
+        fd.append("model", cfg.model);
+        fd.append("response_format", "text");
+        if(cfg.lang && cfg.lang!=="auto") fd.append("language", cfg.lang);
+        res=await fetch(GROQ_URL,{method:"POST",headers:{Authorization:"Bearer "+cfg.key},body:fd});
+      }else{
+        res=await fetch(PROXY_URL,{method:"POST",
+          headers:{"x-app-password":cfg.pw,"x-lang":cfg.lang,"x-model":cfg.model,"content-type":"application/octet-stream"},
+          body:blob});
+      }
+    }catch(e){
+      if(cfg.mode==="proxy"){
+        if(location.protocol==="file:")
+          throw new Error("Appka je otevřená jako soubor, takže se nemá kam poslat /api/transcribe. Otevři nasazenou Vercel URL.");
+        throw new Error("Nejde se připojit k /api/transcribe. Tahle adresa pravděpodobně běží jen jako statický náhled; otevři nasazenou Vercel URL.");
+      }
+      throw new Error("Prohlížeč se nepřipojil ke Groq API. Zkontroluj internet, blokování v prohlížeči nebo zkus režim přes heslo na Vercelu.");
     }
     if(res.status===429){ await sleep(2500*(attempt+1)); continue; }   // rate limit -> počkej
     if(cfg.mode==="proxy" && [404,405,501].includes(res.status))
-      throw new Error("Tato adresa nemá server pro heslo (běží jen staticky). Otevři sekci Pokročilé a zadej vlastní Groq klíč, nebo použij nasazenou verzi na Vercelu.");
+      throw new Error("Tato adresa nemá server pro heslo appky (běží jen staticky). Otevři nasazenou Vercel URL.");
     if(!res.ok){
       let msg=res.status+" "+res.statusText;
       const t=await res.text(); try{ const j=JSON.parse(t); if(j.error) msg=j.error.message||j.error; }catch(e){ if(t) msg=t; }
@@ -297,7 +487,7 @@ btn.addEventListener("click", async ()=>{
   const cfg = key ? {mode:"direct", key, model, lang} : {mode:"proxy", pw, model, lang};
   const chunkSec = cfg.mode==="direct" ? CHUNK_DIRECT : CHUNK_PROXY;
 
-  errEl.textContent=""; result.style.display="none"; btn.disabled=true;
+  errEl.classList.remove("show"); result.style.display="none"; btn.disabled=true;
   prog.style.display="block"; bar.style.width="4%"; status.textContent="Načítám a převádím audio…";
   try{
     const mono=await decodeToMono16k(selectedFile);
@@ -315,8 +505,9 @@ btn.addEventListener("click", async ()=>{
     const full=parts.join("\n").replace(/\n{3,}/g,"\n\n").trim();
     bar.style.width="100%"; status.textContent="Hotovo ✓";
     const words=full.split(/\s+/).filter(Boolean).length;
-    resultMeta.textContent=`${words} slov · ${model}` + (lang==="auto"?" · auto-detekce":"") +
-      (cfg.mode==="direct"?" · vlastní klíč":"");
+    const readMin=Math.max(1, Math.round(words/150));
+    resultMeta.textContent=`${words} slov · ~${readMin} min čtení · ${model}` +
+      (lang==="auto"?" · auto-detekce":"") + (cfg.mode==="direct"?" · vlastní klíč":"");
     transcript.value=full;
     result.style.display="block";
     result.scrollIntoView({behavior:"smooth"});
@@ -324,19 +515,23 @@ btn.addEventListener("click", async ()=>{
     if(ucelEl.value==="bataron"){
       status.textContent="Generuji Bataron zápis a zapisuji do Google Docs…"; bar.style.width="97%";
       try{
-        await sendToBataron(full);
-        resultMeta.textContent += " · ✓ zapsáno do Bataron Docs";
-        toast("Zápis vložen do Google Docs");
+        if(!pwEl.value.trim() || !zapisUrlEl.value.trim()){
+          throw new Error("chybí heslo appky nebo Apps Script URL.");
+        }else{
+          await sendToBataron(full);
+          resultMeta.textContent += " · ✓ zapsáno do Bataron Docs";
+          toast("Zápis vložen do Google Docs");
+        }
       }catch(e){
-        errEl.textContent="Přepis hotový, ale zápis do Docs selhal: "+e.message;
+        showErr("Přepis hotový, ale zápis do Docs selhal: "+e.message);
       }
     }
     bar.style.width="100%";
     setTimeout(()=>{ prog.style.display="none"; }, 800);
   }catch(e){
     prog.style.display="none";
-    errEl.textContent="Chyba: "+e.message +
-      (String(e.message).includes("decode")?" — tenhle formát prohlížeč neumí dekódovat, zkus mp3/m4a/wav.":"");
+    showErr("Chyba: "+e.message +
+      (String(e.message).includes("decode")?" — tenhle formát prohlížeč neumí dekódovat, zkus mp3/m4a/wav.":""));
   }finally{ refresh(); }
 });
 
@@ -350,6 +545,7 @@ $("#download").addEventListener("click", ()=>{
 });
 
 refresh();
+detectProxy();
 </script>
 </body>
 </html>

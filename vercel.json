@@ -3,6 +3,9 @@
   "functions": {
     "api/transcribe.js": {
       "maxDuration": 60
+    },
+    "api/bataron.js": {
+      "maxDuration": 60
     }
   }
 }
