@@ -29,7 +29,7 @@ function doPost(e) {
     var dateStr = body.date || todayCz_();
 
     var zapis = generateZapis_(transcript, meetingTitle, dateStr, props.getProperty("ANTHROPIC_API_KEY"));
-    insertAtTop_(props.getProperty("DOC_ID"), zapis);
+    createTabAndWrite_(props.getProperty("DOC_ID"), zapis, dateStr);
 
     return json_({ ok: true, chars: zapis.length });
   } catch (err) {
@@ -93,22 +93,41 @@ function generateZapis_(transcript, title, dateStr, anthropicKey) {
   return block.text.trim();
 }
 
-/** Vloží markdown jako naformátovaný obsah na ZAČÁTEK dokumentu (nejnovější nahoře). */
-function insertAtTop_(docId, md) {
-  var doc = DocumentApp.openById(docId);
-  var b = doc.getBody();
-  var lines = md.split("\n");
-  var idx = 0;
+/** Vytvoří NOVÝ tab pojmenovaný datem a zapíše do něj zápis.
+ *  Vyžaduje zapnutou pokročilou službu "Docs API" (Docs). */
+function createTabAndWrite_(docId, md, dateStr) {
+  // 1) nový tab s názvem = datum (Docs Advanced Service — AddDocumentTabRequest)
+  var res = Docs.Documents.batchUpdate(
+    { requests: [ { addDocumentTab: { tabProperties: { title: dateStr } } } ] },
+    docId
+  );
+  // 2) id nového tabu — z odpovědi, jinak dohledáním podle názvu
+  var tabId = null;
+  try { tabId = res.replies[0].addDocumentTab.tabId; } catch (e) {}
+  if (!tabId) {
+    var tabs = DocumentApp.openById(docId).getTabs();
+    for (var i = tabs.length - 1; i >= 0; i--) {
+      if (tabs[i].getTitle() === dateStr) { tabId = tabs[i].getId(); break; }
+    }
+  }
+  if (!tabId) throw new Error("Nepodařilo se vytvořit nový tab.");
+  // 3) zapiš obsah do nového tabu
+  var body = DocumentApp.openById(docId).getTab(tabId).asDocumentTab().getBody();
+  writeMd_(body, md);
+}
 
+/** Zapíše markdown jako naformátovaný obsah do daného Body (append). */
+function writeMd_(body, md) {
+  var lines = md.split("\n");
   for (var i = 0; i < lines.length; i++) {
     var raw = lines[i].replace(/\*\*/g, "").replace(/[—–]/g, ",").replace(/\s+$/, "");
     var t = raw.trim();
-    if (t === "") { b.insertParagraph(idx++, ""); continue; }
+    if (t === "") { body.appendParagraph(""); continue; }
 
     var h = t.match(/^(#{1,4})\s+(.*)$/);
     if (h) {
-      var level = h[1].length, text = h[2].trim();
-      var p = b.insertParagraph(idx++, text);
+      var level = h[1].length;
+      var p = body.appendParagraph(h[2].trim());
       p.setHeading(level === 1 ? DocumentApp.ParagraphHeading.HEADING1
                  : level === 2 ? DocumentApp.ParagraphHeading.HEADING2
                  : level === 3 ? DocumentApp.ParagraphHeading.HEADING3
@@ -117,18 +136,17 @@ function insertAtTop_(docId, md) {
     }
     var num = t.match(/^\d+\.\s+(.*)$/);
     var bullet = t.match(/^[-*]\s+(.*)$/);
-    if (num) {
-      b.insertListItem(idx++, num[1]).setGlyphType(DocumentApp.GlyphType.NUMBER);
-    } else if (bullet) {
-      b.insertListItem(idx++, bullet[1]).setGlyphType(DocumentApp.GlyphType.BULLET);
-    } else {
-      b.insertParagraph(idx++, t);
+    if (num) body.appendListItem(num[1]).setGlyphType(DocumentApp.GlyphType.NUMBER);
+    else if (bullet) body.appendListItem(bullet[1]).setGlyphType(DocumentApp.GlyphType.BULLET);
+    else body.appendParagraph(t);
+  }
+  // odstraň úvodní prázdný odstavec nového tabu
+  if (body.getNumChildren() > 1) {
+    var f = body.getChild(0);
+    if (f.getType() === DocumentApp.ElementType.PARAGRAPH && f.asParagraph().getText() === "") {
+      body.removeChild(f);
     }
   }
-  // oddělovač mezi novým a předchozím zápisem
-  b.insertHorizontalRule(idx++);
-  b.insertParagraph(idx++, "");
-  doc.saveAndClose();
 }
 
 function todayCz_() {
