@@ -5,14 +5,14 @@
  * datovaný oddíl na začátek dokumentu.
  *
  * Nastavení (Project Settings → Script Properties):
- *   ANTHROPIC_API_KEY = sk-ant-...      (klíč z console.anthropic.com)
- *   DOC_ID            = 11L6bS-...mHMY  (ID dokumentu se zápisy)
- *   SHARED_SECRET     = tajne-heslo     (stejné jako heslo appky, aby nepsal kdokoli)
+ *   OPENAI_API_KEY = sk-...          (stejný klíč jako na Vercelu, z platform.openai.com/api-keys)
+ *   DOC_ID         = 11L6bS-...mHMY  (ID dokumentu se zápisy)
+ *   SHARED_SECRET  = tajne-heslo     (stejné jako heslo appky, aby nepsal kdokoli)
  *
- * Přepis (Whisper) běží v appce přes Groq; tento skript řeší jen generování zápisu přes Claude.
+ * Přepis (Whisper) běží v appce přes OpenAI; tento skript řeší jen generování zápisu přes OpenAI GPT.
  */
 
-var LLM_MODEL = "claude-sonnet-5";   // kvalita/cena; levněji: "claude-haiku-4-5-20251001"
+var LLM_MODEL = "gpt-5";   // kvalita/cena; levněji: "gpt-5-mini" nebo "gpt-4o"
 
 function doPost(e) {
   try {
@@ -28,7 +28,7 @@ function doPost(e) {
     var meetingTitle = body.title || "";
     var dateStr = body.date || todayCz_();
 
-    var zapis = generateZapis_(transcript, meetingTitle, dateStr, props.getProperty("ANTHROPIC_API_KEY"));
+    var zapis = generateZapis_(transcript, meetingTitle, dateStr, props.getProperty("OPENAI_API_KEY"));
     createTabAndWrite_(props.getProperty("DOC_ID"), zapis, dateStr);
 
     return json_({ ok: true, chars: zapis.length });
@@ -37,8 +37,8 @@ function doPost(e) {
   }
 }
 
-/** Vygeneruje zápis v Bataron stylu přes Claude. Vrací markdown. */
-function generateZapis_(transcript, title, dateStr, anthropicKey) {
+/** Vygeneruje zápis v Bataron stylu přes OpenAI GPT. Vrací markdown. */
+function generateZapis_(transcript, title, dateStr, openaiKey) {
   var system = [
     "Jsi zkušený asistent, který z přepisu meetingu píše DETAILNÍ strukturovaný zápis v češtině",
     "ve stylu dokumentu 'Bataron zápisy z meetingů'.",
@@ -70,27 +70,30 @@ function generateZapis_(transcript, title, dateStr, anthropicKey) {
     "Vrať POUZE samotný zápis v markdownu, bez úvodních a závěrečných poznámek."
   ].join("\n");
 
-  var res = UrlFetchApp.fetch("https://api.anthropic.com/v1/messages", {
+  var res = UrlFetchApp.fetch("https://api.openai.com/v1/chat/completions", {
     method: "post",
     contentType: "application/json",
-    headers: { "x-api-key": anthropicKey, "anthropic-version": "2023-06-01" },
+    headers: { Authorization: "Bearer " + openaiKey },
     muteHttpExceptions: true,
     payload: JSON.stringify({
       model: LLM_MODEL,
-      max_tokens: 8000,
-      system: system,
+      max_completion_tokens: 16000,
       messages: [
+        { role: "system", content: system },
         { role: "user", content: "Datum meetingu: " + dateStr + "\n\nPŘEPIS:\n" + transcript }
       ]
     })
   });
-  var data = JSON.parse(res.getContentText());
-  // vytáhni textový blok (Claude může vrátit i "thinking" blok jako první)
-  var block = (data.content || []).filter(function (b) { return b.type === "text" && b.text; })[0];
-  if (!block) {
-    throw new Error("Claude chyba: " + res.getContentText().slice(0, 300));
+  if (res.getResponseCode() >= 300) {
+    throw new Error("OpenAI chyba: " + res.getContentText().slice(0, 300));
   }
-  return block.text.trim();
+  var data = JSON.parse(res.getContentText());
+  var msg = data.choices && data.choices[0] && data.choices[0].message;
+  var text = msg && msg.content;
+  if (!text || !text.trim()) {
+    throw new Error("OpenAI chyba: prázdná odpověď (" + res.getContentText().slice(0, 300) + ")");
+  }
+  return text.trim();
 }
 
 /** Vytvoří NOVÝ tab pojmenovaný datem a zapíše do něj zápis.
