@@ -279,7 +279,7 @@ const OPENAI_URL="https://api.openai.com/v1/audio/transcriptions";
 const PROXY_URL="/api/transcribe";
 const BATARON_PROXY_URL="/api/bataron";
 const SR=16000;                 // 16 kHz mono jako lokální recept
-const CHUNK_PROXY=100;          // 100 s ≈ 3,2 MB WAV (pod Vercel limitem 4,5 MB)
+const CHUNK_PROXY=80;           // 80 s ≈ 2,4 MB WAV (rezerva pod 4,5 MB tělem i 60s timeoutem Vercelu)
 const CHUNK_DIRECT=480;         // 8 min ≈ 15 MB (pod OpenAI limitem 25 MB)
 let selectedFile=null;
 let proxyState="checking";      // checking | available | unavailable
@@ -467,7 +467,10 @@ async function transcribeChunk(blob, cfg){
       }
       throw new Error("Prohlížeč se nepřipojil ke OpenAI API. Zkontroluj internet, blokování v prohlížeči nebo zkus režim přes heslo na Vercelu.");
     }
-    if(res.status===429){ await sleep(2500*(attempt+1)); continue; }   // rate limit -> počkej
+    // rate limit (429) i přechodné 5xx / timeout (500/502/503/504) -> počkej a zkus znovu
+    if((res.status===429 || (res.status>=500 && res.status!==501)) && attempt<3){
+      await sleep(3000*(attempt+1)); continue;
+    }
     if(cfg.mode==="proxy" && [404,405,501].includes(res.status))
       throw new Error("Tato adresa nemá server pro heslo appky (běží jen staticky). Otevři nasazenou Vercel URL.");
     if(!res.ok){
