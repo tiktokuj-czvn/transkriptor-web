@@ -85,10 +85,12 @@ function generateZapis_(transcript, title, dateStr, anthropicKey) {
     })
   });
   var data = JSON.parse(res.getContentText());
-  if (!data.content || !data.content[0] || !data.content[0].text) {
+  // vytáhni textový blok (Claude může vrátit i "thinking" blok jako první)
+  var block = (data.content || []).filter(function (b) { return b.type === "text" && b.text; })[0];
+  if (!block) {
     throw new Error("Claude chyba: " + res.getContentText().slice(0, 300));
   }
-  return data.content[0].text.trim();
+  return block.text.trim();
 }
 
 /** Vloží markdown jako naformátovaný obsah na ZAČÁTEK dokumentu (nejnovější nahoře). */
