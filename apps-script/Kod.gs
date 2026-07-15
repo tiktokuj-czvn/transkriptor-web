@@ -94,16 +94,22 @@ function generateZapis_(transcript, title, dateStr, anthropicKey) {
 }
 
 /** Vytvoří NOVÝ tab pojmenovaný datem a zapíše do něj zápis.
- *  Vyžaduje zapnutou pokročilou službu "Docs API" (Docs). */
+ *  Volá Docs REST API přes UrlFetchApp (token skriptu), bez pokročilé služby. */
 function createTabAndWrite_(docId, md, dateStr) {
-  // 1) nový tab s názvem = datum (Docs Advanced Service — AddDocumentTabRequest)
-  var res = Docs.Documents.batchUpdate(
-    { requests: [ { addDocumentTab: { tabProperties: { title: dateStr } } } ] },
-    docId
-  );
+  // 1) nový tab s názvem = datum (Docs API AddDocumentTabRequest)
+  var res = UrlFetchApp.fetch("https://docs.googleapis.com/v1/documents/" + docId + ":batchUpdate", {
+    method: "post",
+    contentType: "application/json",
+    headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() },
+    muteHttpExceptions: true,
+    payload: JSON.stringify({ requests: [ { addDocumentTab: { tabProperties: { title: dateStr } } } ] })
+  });
+  if (res.getResponseCode() >= 300) {
+    throw new Error("Docs API (tab): " + res.getContentText().slice(0, 300));
+  }
   // 2) id nového tabu — z odpovědi, jinak dohledáním podle názvu
   var tabId = null;
-  try { tabId = res.replies[0].addDocumentTab.tabId; } catch (e) {}
+  try { tabId = JSON.parse(res.getContentText()).replies[0].addDocumentTab.tabId; } catch (e) {}
   if (!tabId) {
     var tabs = DocumentApp.openById(docId).getTabs();
     for (var i = tabs.length - 1; i >= 0; i--) {
