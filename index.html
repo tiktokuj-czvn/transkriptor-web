@@ -132,6 +132,30 @@
     transition:.25s;pointer-events:none;box-shadow:var(--shadow-lg);z-index:50}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
+  /* zámek na vstupu */
+  .lock{position:fixed;inset:0;z-index:100;background:var(--bg);display:grid;place-items:center;padding:24px;
+    transition:opacity .3s ease}
+  .lock.hide{opacity:0;pointer-events:none}
+  .lockcard{width:100%;max-width:380px;background:var(--card);border:1px solid var(--line);
+    border-radius:var(--radius);box-shadow:var(--shadow-lg);padding:34px 28px;text-align:center}
+  .lockcard .lockico{font-size:38px;margin-bottom:10px}
+  .lockcard h2{margin:0 0 4px;font-size:21px;letter-spacing:-.02em}
+  .lockcard p{margin:0 0 20px;color:var(--muted);font-size:14px}
+  .pwwrap{position:relative;text-align:left}
+  .pwwrap input{padding-right:74px}
+  .pwwrap .eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:32px;height:32px;border:none;
+    background:transparent;color:var(--faint);cursor:pointer;font-size:16px;border-radius:8px;display:grid;place-items:center}
+  .pwwrap .eye:hover{color:var(--muted)}
+  .pwwrap .check{position:absolute;right:46px;top:50%;transform:translateY(-50%);color:var(--ok);font-weight:800;
+    opacity:0;transition:.15s;pointer-events:none}
+  .pwwrap.ok .check{opacity:1}
+  .remember{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);font-weight:500;
+    margin:14px 2px 0;cursor:pointer}
+  .remember input{width:auto;margin:0;accent-color:var(--accent)}
+  .lockhint{font-size:12.5px;color:var(--err);margin-top:10px;min-height:16px;text-align:left}
+  .lockcard .go{margin-top:16px}
+  .lockcard details.adv{margin-top:16px;text-align:left}
+
   #inputSeg{margin-bottom:14px}
   #textInput textarea{width:100%;min-height:200px;padding:16px;font-size:15px;line-height:1.6;
     border:2px dashed var(--line2);border-radius:var(--radius);background:var(--card);color:var(--ink);
@@ -151,6 +175,27 @@
 </style>
 </head>
 <body>
+<!-- ZÁMEK: heslo se řeší jednou na vstupu -->
+<div class="lock" id="lock">
+  <div class="lockcard">
+    <div class="lockico">🔒</div>
+    <h2>Transkriptor</h2>
+    <p>Zadej heslo appky a odemkni.</p>
+    <div class="pwwrap" id="lockPwWrap">
+      <input type="password" id="lockPw" placeholder="heslo appky" autocomplete="current-password">
+      <span class="check">✓</span>
+      <button class="eye" id="lockEye" type="button" title="Zobrazit heslo" aria-label="Zobrazit heslo">👁</button>
+    </div>
+    <label class="remember"><input type="checkbox" id="lockRemember" checked> Zapamatovat na tomto zařízení</label>
+    <button class="go" id="lockBtn">Odemknout</button>
+    <div class="lockhint" id="lockHint"></div>
+    <details class="adv">
+      <summary>Mám vlastní OpenAI klíč místo hesla</summary>
+      <input type="password" id="lockKey" placeholder="sk-..." autocomplete="off">
+    </details>
+  </div>
+</div>
+
 <div class="wrap">
   <header>
     <div class="brand">
@@ -306,7 +351,9 @@ const pwEl=$("#pw"), keyEl=$("#key"), langEl=$("#lang"), fmtEl=$("#fmt"), fileEl
       status=$("#status"), errEl=$("#error"), result=$("#result"), transcript=$("#transcript"),
       resultMeta=$("#resultMeta"), toastEl=$("#toast"), gear=$("#gear"), settings=$("#settings"), seg=$("#seg"),
       inputSeg=$("#inputSeg"), textInput=$("#textInput"), textArea=$("#textArea"),
-      docFile=$("#docFile"), docPick=$("#docPick"), docInfo=$("#docInfo");
+      docFile=$("#docFile"), docPick=$("#docPick"), docInfo=$("#docInfo"),
+      lock=$("#lock"), lockPw=$("#lockPw"), lockKey=$("#lockKey"), lockEye=$("#lockEye"),
+      lockRemember=$("#lockRemember"), lockBtn=$("#lockBtn"), lockHint=$("#lockHint"), lockPwWrap=$("#lockPwWrap");
 let inputType = localStorage.getItem("input_type") || "audio";
 if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
@@ -319,9 +366,9 @@ const CHUNK_DIRECT=480;         // 8 min ≈ 15 MB (pod OpenAI limitem 25 MB)
 let selectedFile=null;
 let proxyState="checking";      // checking | available | unavailable
 
-// --- uložení/načtení přihlášení ---
-pwEl.value  = localStorage.getItem("app_pw")  || "";
-keyEl.value = localStorage.getItem("openai_key")|| "";
+// --- uložení/načtení přihlášení (localStorage = zapamatováno, sessionStorage = jen tato relace) ---
+pwEl.value  = localStorage.getItem("app_pw")  || sessionStorage.getItem("app_pw")  || "";
+keyEl.value = localStorage.getItem("openai_key")|| sessionStorage.getItem("openai_key")|| "";
 zapisUrlEl.value = localStorage.getItem("zapis_url") || "";
 ucelEl.value = localStorage.getItem("ucel") || "plain";
 pwEl.addEventListener("input", ()=>{ localStorage.setItem("app_pw", pwEl.value.trim()); refresh(); });
@@ -331,8 +378,30 @@ zapisUrlEl.addEventListener("input", ()=>{ localStorage.setItem("zapis_url", zap
 // --- nastavení (ozubené kolo) ---
 function openSettings(on){ settings.classList.toggle("open", on); gear.classList.toggle("on", on); }
 gear.addEventListener("click", ()=> openSettings(!settings.classList.contains("open")) );
-// první spuštění bez konfigurace -> nastavení otevřené
-if(!pwEl.value.trim() && !keyEl.value.trim()) openSettings(true);
+
+// --- zámek na vstupu ---
+lockPwWrap.classList.toggle("ok", !!lockPw.value.trim());
+lockPw.addEventListener("input", ()=>{ lockPwWrap.classList.toggle("ok", !!lockPw.value.trim()); lockHint.textContent=""; });
+lockEye.addEventListener("click", ()=>{ const hid=lockPw.type==="password";
+  lockPw.type=hid?"text":"password"; lockEye.textContent=hid?"🙈":"👁"; lockPw.focus(); });
+function doUnlock(){
+  const pw=lockPw.value.trim(), key=lockKey.value.trim();
+  if(!pw && !key){ lockHint.textContent="Zadej heslo (nebo vlastní OpenAI klíč)."; return; }
+  pwEl.value=pw; keyEl.value=key;
+  const store  = lockRemember.checked ? localStorage : sessionStorage;
+  const other  = lockRemember.checked ? sessionStorage : localStorage;
+  if(pw){ store.setItem("app_pw",pw); other.removeItem("app_pw"); }
+  else  { localStorage.removeItem("app_pw"); sessionStorage.removeItem("app_pw"); }
+  if(key){ store.setItem("openai_key",key); other.removeItem("openai_key"); }
+  else   { localStorage.removeItem("openai_key"); sessionStorage.removeItem("openai_key"); }
+  lock.classList.add("hide");
+  refresh();
+}
+lockBtn.addEventListener("click", doUnlock);
+[lockPw,lockKey].forEach(el=>el.addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); doUnlock(); } }));
+// už máme uložené přihlášení -> rovnou odemčeno, jinak fokus na heslo
+if(pwEl.value.trim() || keyEl.value.trim()) lock.classList.add("hide");
+else setTimeout(()=>lockPw.focus(), 80);
 
 // --- segmentovaný Účel ---
 function selectUcel(val){
@@ -399,6 +468,7 @@ function todayCz(){ const d=new Date(); return d.getDate()+"."+(d.getMonth()+1)+
 function fmtSize(b){ return b>=1048576 ? (b/1048576).toFixed(1)+" MB" : Math.round(b/1024)+" kB"; }
 function fmtDur(s){ if(!isFinite(s)||s<=0) return ""; s=Math.round(s); const m=Math.floor(s/60), r=s%60;
   return m>0 ? m+" min "+(r<10?"0":"")+r+" s" : r+" s"; }
+function fmtEta(s){ return s<=0 ? "" : s<60 ? s+" s" : Math.round(s/60)+" min"; }
 
 // pošle přepis do Google Apps Scriptu -> vygeneruje zápis a vloží do Bataron Docs
 async function sendToBataron(text){
@@ -616,10 +686,14 @@ btn.addEventListener("click", async ()=>{
     const total=mono.length, chunkLen=chunkSec*SR;
     const nChunks=Math.max(1, Math.ceil(total/chunkLen));
     let parts=[];
+    const t0=performance.now();
     for(let i=0;i<nChunks;i++){
       const slice=mono.subarray(i*chunkLen, Math.min((i+1)*chunkLen, total));
       const wav=encodeWAV(slice, SR);
-      status.textContent = nChunks>1 ? `Přepisuji část ${i+1}/${nChunks}…` : "Přepisuji…";
+      let eta="";
+      if(i>0){ const rem=Math.round(((performance.now()-t0)/1000/i)*(nChunks-i));
+        if(rem>0) eta=" · ~"+fmtEta(rem)+" zbývá"; }
+      status.textContent = nChunks>1 ? `Přepisuji část ${i+1}/${nChunks}${eta}` : "Přepisuji…";
       bar.style.width = (8 + (i/nChunks)*88)+"%";
       parts.push(await transcribeChunk(wav, cfg));
       bar.style.width = (8 + ((i+1)/nChunks)*88)+"%";
