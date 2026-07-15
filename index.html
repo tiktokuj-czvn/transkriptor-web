@@ -158,11 +158,11 @@
       <div class="hint">Zadej jednou, uloží se jen ve tvém prohlížeči.</div>
       <div class="hint" id="serverHint"></div>
       <details class="adv">
-        <summary>Mám vlastní Groq klíč</summary>
-        <input type="password" id="key" placeholder="gsk_..." autocomplete="off">
+        <summary>Mám vlastní OpenAI klíč</summary>
+        <input type="password" id="key" placeholder="sk-..." autocomplete="off">
         <div class="hint">Náhradní možnost místo hesla — klíč z
-          <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>.
-          Přepis pak jde přímo z tvého prohlížeče na Groq.</div>
+          <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com/api-keys</a>.
+          Přepis pak jde přímo z tvého prohlížeče na OpenAI.</div>
       </details>
     </div>
     <div class="fld" id="bataronCfg" style="display:none">
@@ -227,8 +227,7 @@
       <div>
         <label for="fmt">Model</label>
         <select id="fmt">
-          <option value="whisper-large-v3-turbo">Turbo (rychlý, doporučeno)</option>
-          <option value="whisper-large-v3">Large v3 (nejpřesnější)</option>
+          <option value="whisper-1">Whisper (OpenAI)</option>
         </select>
       </div>
     </div>
@@ -258,8 +257,8 @@
     <details class="info">
       <summary>Jak to funguje &amp; soukromí</summary>
       <p>Soubor se v tvém prohlížeči převede na 16 kHz mono, dlouhé nahrávky se rozdělí na části a přepíšou
-      modelem Whisper (Groq). Přes heslo jde přepis přes malý server, který drží klíč skrytý; s vlastním
-      klíčem jde přímo na Groq. Nahrávka neprochází žádným cizím úložištěm.</p>
+      modelem Whisper (OpenAI). Přes heslo jde přepis přes malý server, který drží klíč skrytý; s vlastním
+      klíčem jde přímo na OpenAI. Nahrávka neprochází žádným cizím úložištěm.</p>
     </details>
   </footer>
 </div>
@@ -276,22 +275,22 @@ const pwEl=$("#pw"), keyEl=$("#key"), langEl=$("#lang"), fmtEl=$("#fmt"), fileEl
       status=$("#status"), errEl=$("#error"), result=$("#result"), transcript=$("#transcript"),
       resultMeta=$("#resultMeta"), toastEl=$("#toast"), gear=$("#gear"), settings=$("#settings"), seg=$("#seg");
 
-const GROQ_URL="https://api.groq.com/openai/v1/audio/transcriptions";
+const OPENAI_URL="https://api.openai.com/v1/audio/transcriptions";
 const PROXY_URL="/api/transcribe";
 const BATARON_PROXY_URL="/api/bataron";
 const SR=16000;                 // 16 kHz mono jako lokální recept
 const CHUNK_PROXY=100;          // 100 s ≈ 3,2 MB WAV (pod Vercel limitem 4,5 MB)
-const CHUNK_DIRECT=480;         // 8 min ≈ 15 MB (pod Groq limitem 25 MB)
+const CHUNK_DIRECT=480;         // 8 min ≈ 15 MB (pod OpenAI limitem 25 MB)
 let selectedFile=null;
 let proxyState="checking";      // checking | available | unavailable
 
 // --- uložení/načtení přihlášení ---
 pwEl.value  = localStorage.getItem("app_pw")  || "";
-keyEl.value = localStorage.getItem("groq_key")|| "";
+keyEl.value = localStorage.getItem("openai_key")|| "";
 zapisUrlEl.value = localStorage.getItem("zapis_url") || "";
 ucelEl.value = localStorage.getItem("ucel") || "plain";
 pwEl.addEventListener("input", ()=>{ localStorage.setItem("app_pw", pwEl.value.trim()); refresh(); });
-keyEl.addEventListener("input", ()=>{ localStorage.setItem("groq_key", keyEl.value.trim()); refresh(); });
+keyEl.addEventListener("input", ()=>{ localStorage.setItem("openai_key", keyEl.value.trim()); refresh(); });
 zapisUrlEl.addEventListener("input", ()=>{ localStorage.setItem("zapis_url", zapisUrlEl.value.trim()); refresh(); });
 
 // --- nastavení (ozubené kolo) ---
@@ -377,7 +376,7 @@ function refresh(){
   const proxyNeededButMissing = selectedFile && hasPw && !hasKey && proxyState==="unavailable";
   btn.disabled = !(selectedFile && hasTranscribeAuth) || proxyNeededButMissing;
   serverHint.textContent = proxyState==="unavailable"
-    ? "Tahle lokální/statická adresa nemá server pro heslo appky. Pokud nemáš vlastní Groq klíč, otevři nasazenou Vercel URL."
+    ? "Tahle lokální/statická adresa nemá server pro heslo appky. Pokud nemáš vlastní OpenAI klíč, otevři nasazenou Vercel URL."
     : "";
 
   if(!selectedFile){
@@ -454,7 +453,7 @@ async function transcribeChunk(blob, cfg){
         fd.append("model", cfg.model);
         fd.append("response_format", "text");
         if(cfg.lang && cfg.lang!=="auto") fd.append("language", cfg.lang);
-        res=await fetch(GROQ_URL,{method:"POST",headers:{Authorization:"Bearer "+cfg.key},body:fd});
+        res=await fetch(OPENAI_URL,{method:"POST",headers:{Authorization:"Bearer "+cfg.key},body:fd});
       }else{
         res=await fetch(PROXY_URL,{method:"POST",
           headers:{"x-app-password":cfg.pw,"x-lang":cfg.lang,"x-model":cfg.model,"content-type":"application/octet-stream"},
@@ -466,7 +465,7 @@ async function transcribeChunk(blob, cfg){
           throw new Error("Appka je otevřená jako soubor, takže se nemá kam poslat /api/transcribe. Otevři nasazenou Vercel URL.");
         throw new Error("Nejde se připojit k /api/transcribe. Tahle adresa pravděpodobně běží jen jako statický náhled; otevři nasazenou Vercel URL.");
       }
-      throw new Error("Prohlížeč se nepřipojil ke Groq API. Zkontroluj internet, blokování v prohlížeči nebo zkus režim přes heslo na Vercelu.");
+      throw new Error("Prohlížeč se nepřipojil ke OpenAI API. Zkontroluj internet, blokování v prohlížeči nebo zkus režim přes heslo na Vercelu.");
     }
     if(res.status===429){ await sleep(2500*(attempt+1)); continue; }   // rate limit -> počkej
     if(cfg.mode==="proxy" && [404,405,501].includes(res.status))
@@ -478,7 +477,7 @@ async function transcribeChunk(blob, cfg){
     }
     return (await res.text()).trim();
   }
-  throw new Error("Groq je přetížený (rate limit), zkus to za chvíli.");
+  throw new Error("OpenAI je přetížený (rate limit), zkus to za chvíli.");
 }
 
 // --- hlavní běh ---

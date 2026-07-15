@@ -1,4 +1,4 @@
-// Vercel serverless proxy: schová Groq klíč na serveru, chrání ho sdíleným heslem.
+// Vercel serverless proxy: schová OpenAI klíč na serveru, chrání ho sdíleným heslem.
 // Frontend posílá surové WAV bajty v těle + hlavičky x-app-password / x-lang / x-model.
 // Bez npm závislostí — používá globální fetch/FormData/Blob z Node 18+.
 
@@ -11,10 +11,10 @@ export default async function handler(req, res) {
   }
 
   const expected = process.env.APP_PASSWORD;
-  const groqKey = process.env.GROQ_API_KEY;
+  const openaiKey = process.env.OPENAI_API_KEY;
 
-  if (!groqKey) {
-    res.status(500).json({ error: "Server nemá nastavený GROQ_API_KEY." });
+  if (!openaiKey) {
+    res.status(500).json({ error: "Server nemá nastavený OPENAI_API_KEY." });
     return;
   }
   if (expected && req.headers["x-app-password"] !== expected) {
@@ -23,7 +23,7 @@ export default async function handler(req, res) {
   }
 
   const lang = (req.headers["x-lang"] || "auto").toString();
-  const model = (req.headers["x-model"] || "whisper-large-v3-turbo").toString();
+  const model = (req.headers["x-model"] || "whisper-1").toString();
 
   try {
     // surové tělo do bufferu
@@ -41,15 +41,15 @@ export default async function handler(req, res) {
     fd.append("response_format", "text");
     if (lang && lang !== "auto") fd.append("language", lang);
 
-    const r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+    const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",
-      headers: { Authorization: "Bearer " + groqKey },
+      headers: { Authorization: "Bearer " + openaiKey },
       body: fd,
     });
 
     const text = await r.text();
     if (!r.ok) {
-      res.status(r.status).send(text || "Groq chyba");
+      res.status(r.status).send(text || "OpenAI chyba");
       return;
     }
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
