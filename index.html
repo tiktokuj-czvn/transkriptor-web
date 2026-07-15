@@ -132,6 +132,17 @@
     transition:.25s;pointer-events:none;box-shadow:var(--shadow-lg);z-index:50}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
+  #inputSeg{margin-bottom:14px}
+  #textInput textarea{width:100%;min-height:200px;padding:16px;font-size:15px;line-height:1.6;
+    border:2px dashed var(--line2);border-radius:var(--radius);background:var(--card);color:var(--ink);
+    resize:vertical;font-family:inherit;box-shadow:var(--shadow);transition:.15s}
+  #textInput textarea:focus{outline:none;border-color:var(--accent);border-style:solid}
+  #textInput textarea.over{border-color:var(--accent);border-style:solid;background:var(--accent-soft)}
+  .docrow{display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap}
+  .docrow button{font-family:inherit;font-size:13.5px;font-weight:600;border-radius:10px;cursor:pointer;
+    padding:9px 14px;border:1px solid var(--line2);background:var(--card);color:var(--ink);transition:.15s}
+  .docrow button:hover{border-color:var(--accent);color:var(--accent)}
+
   footer{margin-top:22px}
   details.info summary{cursor:pointer;font-weight:600;font-size:13px;color:var(--muted);list-style:none}
   details.info summary::-webkit-details-marker{display:none}
@@ -144,7 +155,7 @@
   <header>
     <div class="brand">
       <h1><span>🎧</span> Transkriptor</h1>
-      <div class="sub">Vícejazyčný přepis audia a videa.</div>
+      <div class="sub">Přepis audia, videa i dokumentů → zápis.</div>
       <div class="badge">🔒 Běží u tebe v prohlížeči</div>
     </div>
     <button class="gear" id="gear" title="Nastavení" aria-label="Nastavení">⚙</button>
@@ -173,7 +184,13 @@
     </div>
   </div>
 
-  <!-- HERO: vstup -->
+  <!-- přepínač vstupu -->
+  <div class="seg" id="inputSeg">
+    <button data-input="audio" class="sel"><span class="e">🎧</span> Audio / video</button>
+    <button data-input="text"><span class="e">📝</span> Text / dokument</button>
+  </div>
+
+  <!-- HERO: audio vstup -->
   <div id="drop">
     <div class="prompt">
       <div class="ico">⤓</div>
@@ -193,6 +210,16 @@
     </div>
   </div>
   <input type="file" id="file" accept="audio/*,video/*" hidden>
+
+  <!-- textový / dokumentový vstup -->
+  <div id="textInput" style="display:none">
+    <textarea id="textArea" placeholder="Vlož sem text, nebo přetáhni dokument (.txt, .md, .pdf, .docx)…"></textarea>
+    <div class="docrow">
+      <button id="docPick">📎 Vybrat dokument</button>
+      <span class="hint" id="docInfo"></span>
+    </div>
+  </div>
+  <input type="file" id="docFile" accept=".txt,.md,.markdown,.pdf,.docx" hidden>
 
   <!-- akce -->
   <div class="card">
@@ -244,7 +271,7 @@
 
   <!-- výsledek -->
   <div class="card" id="result">
-    <h3>✓ Přepis hotový</h3>
+    <h3>✓ Hotovo</h3>
     <div class="meta" id="resultMeta"></div>
     <textarea id="transcript" spellcheck="false"></textarea>
     <div class="actions">
@@ -265,6 +292,10 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- extrakce textu z PDF / DOCX (načítá se jen když je potřeba) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+
 <script>
 const $ = s => document.querySelector(s);
 const pwEl=$("#pw"), keyEl=$("#key"), langEl=$("#lang"), fmtEl=$("#fmt"), fileEl=$("#file"),
@@ -273,7 +304,11 @@ const pwEl=$("#pw"), keyEl=$("#key"), langEl=$("#lang"), fmtEl=$("#fmt"), fileEl
       audioPreview=$("#audioPreview"), removeFile=$("#removeFile"),
       serverHint=$("#serverHint"), btnHint=$("#btnHint"), prog=$("#progress"), bar=$("#barFill"),
       status=$("#status"), errEl=$("#error"), result=$("#result"), transcript=$("#transcript"),
-      resultMeta=$("#resultMeta"), toastEl=$("#toast"), gear=$("#gear"), settings=$("#settings"), seg=$("#seg");
+      resultMeta=$("#resultMeta"), toastEl=$("#toast"), gear=$("#gear"), settings=$("#settings"), seg=$("#seg"),
+      inputSeg=$("#inputSeg"), textInput=$("#textInput"), textArea=$("#textArea"),
+      docFile=$("#docFile"), docPick=$("#docPick"), docInfo=$("#docInfo");
+let inputType = localStorage.getItem("input_type") || "audio";
+if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
 const OPENAI_URL="https://api.openai.com/v1/audio/transcriptions";
 const PROXY_URL="/api/transcribe";
@@ -311,6 +346,55 @@ function selectUcel(val){
 seg.addEventListener("click", e=>{ const b=e.target.closest("button"); if(b) selectUcel(b.dataset.ucel); });
 selectUcel(ucelEl.value);
 
+// --- přepínač vstupu: audio vs text/dokument ---
+let docName="";
+function selectInput(val){
+  inputType=val;
+  [...inputSeg.children].forEach(b=>b.classList.toggle("sel", b.dataset.input===val));
+  drop.style.display = val==="audio" ? "block" : "none";
+  textInput.style.display = val==="text" ? "block" : "none";
+  localStorage.setItem("input_type", val);
+  refresh();
+}
+inputSeg.addEventListener("click", e=>{ const b=e.target.closest("button"); if(b) selectInput(b.dataset.input); });
+
+// --- extrakce textu z dokumentu (.txt/.md/.pdf/.docx) ---
+async function extractDoc(file){
+  const n=file.name.toLowerCase();
+  if(n.endsWith(".pdf")){
+    if(!window.pdfjsLib) throw new Error("PDF knihovna se nenačetla, zkus text vložit ručně.");
+    const buf=await file.arrayBuffer();
+    const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+    let out="";
+    for(let i=1;i<=pdf.numPages;i++){ const p=await pdf.getPage(i); const c=await p.getTextContent();
+      out += c.items.map(it=>it.str).join(" ")+"\n\n"; }
+    return out.trim();
+  }
+  if(n.endsWith(".docx")){
+    if(!window.mammoth) throw new Error("DOCX knihovna se nenačetla, zkus text vložit ručně.");
+    const buf=await file.arrayBuffer();
+    const r=await mammoth.extractRawText({arrayBuffer:buf});
+    return (r.value||"").trim();
+  }
+  return (await file.text()).trim();   // .txt, .md, ostatní textové
+}
+async function loadDoc(file){
+  docInfo.textContent="Načítám "+file.name+"…";
+  try{
+    const text=await extractDoc(file);
+    if(!text) throw new Error("z dokumentu se nepodařilo vytáhnout text.");
+    textArea.value=text; docName=file.name.replace(/\.[^.]+$/,"");
+    docInfo.textContent="✓ "+file.name+" · "+text.split(/\s+/).filter(Boolean).length+" slov";
+  }catch(e){ docInfo.textContent="Chyba: "+e.message; }
+  refresh();
+}
+docPick.addEventListener("click", ()=>docFile.click());
+docFile.addEventListener("change", e=>{ if(e.target.files[0]) loadDoc(e.target.files[0]); });
+textArea.addEventListener("input", ()=>{ docName=""; if(docInfo.textContent && !docInfo.textContent.startsWith("Chyba")) docInfo.textContent=""; refresh(); });
+["dragover","dragenter"].forEach(ev=>textArea.addEventListener(ev,e=>{e.preventDefault();textArea.classList.add("over");}));
+["dragleave","drop"].forEach(ev=>textArea.addEventListener(ev,e=>{e.preventDefault();textArea.classList.remove("over");}));
+textArea.addEventListener("drop", e=>{ const f=e.dataTransfer.files&&e.dataTransfer.files[0]; if(f){ e.preventDefault(); loadDoc(f); } });
+
 function todayCz(){ const d=new Date(); return d.getDate()+"."+(d.getMonth()+1)+"."+d.getFullYear(); }
 function fmtSize(b){ return b>=1048576 ? (b/1048576).toFixed(1)+" MB" : Math.round(b/1024)+" kB"; }
 function fmtDur(s){ if(!isFinite(s)||s<=0) return ""; s=Math.round(s); const m=Math.floor(s/60), r=s%60;
@@ -320,7 +404,7 @@ function fmtDur(s){ if(!isFinite(s)||s<=0) return ""; s=Math.round(s); const m=M
 async function sendToBataron(text){
   const url=zapisUrlEl.value.trim();
   if(!url) throw new Error("Chybí Apps Script URL pro Bataron (doplň v ⚙ nastavení).");
-  const title=selectedFile ? selectedFile.name.replace(/\.[^.]+$/,"") : "";
+  const title = selectedFile ? selectedFile.name.replace(/\.[^.]+$/,"") : (docName || "");
   let res;
   try{
     // přímo na Apps Script (6min limit) — obchází 60s limit Vercel funkce; text/plain = bez CORS preflightu
@@ -370,8 +454,23 @@ function refresh(){
   const needsBataron = ucelEl.value==="bataron";
   const hasPw = !!pwEl.value.trim();
   const hasKey = !!keyEl.value.trim();
+  const hasBataronAuth = hasPw && zapisUrlEl.value.trim();
+
+  // --- text / dokument mód (přeskočí přepis) ---
+  if(inputType==="text"){
+    const hasText = !!textArea.value.trim();
+    btn.textContent = needsBataron ? "Vytvořit zápis" : "Zpracovat text";
+    btn.disabled = !hasText;
+    serverHint.textContent = "";
+    if(!hasText) btnHint.textContent = "Vlož text nebo přetáhni dokument (.txt, .md, .pdf, .docx).";
+    else if(needsBataron && !hasBataronAuth) btnHint.textContent = "Pro zápis do Docs doplň heslo a Apps Script URL v ⚙ nastavení.";
+    else btnHint.textContent = needsBataron ? "Připraveno: text → Bataron zápis do Docs." : "Připraveno.";
+    return;
+  }
+
+  // --- audio mód ---
+  btn.textContent = "Přepsat";
   const hasTranscribeAuth = hasPw || hasKey;
-  const hasBataronAuth = pwEl.value.trim() && zapisUrlEl.value.trim();
   const proxyNeededButMissing = selectedFile && hasPw && !hasKey && proxyState==="unavailable";
   btn.disabled = !(selectedFile && hasTranscribeAuth) || proxyNeededButMissing;
   serverHint.textContent = proxyState==="unavailable"
@@ -484,6 +583,28 @@ async function transcribeChunk(blob, cfg){
 
 // --- hlavní běh ---
 btn.addEventListener("click", async ()=>{
+  // --- TEXT / DOKUMENT mód: přeskočí přepis, jde rovnou na zápis ---
+  if(inputType==="text"){
+    const full = textArea.value.trim();
+    if(!full){ showErr("Vlož text nebo přetáhni dokument."); return; }
+    errEl.classList.remove("show"); result.style.display="none"; btn.disabled=true;
+    const words=full.split(/\s+/).filter(Boolean).length;
+    resultMeta.textContent = `${words} slov · ` + (docName ? "z „"+docName+"“" : "vložený text");
+    transcript.value=full; result.style.display="block"; result.scrollIntoView({behavior:"smooth"});
+    if(ucelEl.value==="bataron"){
+      prog.style.display="block"; bar.style.width="30%";
+      status.textContent="Generuji Bataron zápis a zapisuji do Google Docs…";
+      try{
+        if(!pwEl.value.trim() || !zapisUrlEl.value.trim()) throw new Error("chybí heslo appky nebo Apps Script URL (⚙ nastavení).");
+        await sendToBataron(full);
+        resultMeta.textContent += " · ✓ zapsáno do Bataron Docs";
+        bar.style.width="100%"; status.textContent="Hotovo ✓"; toast("Zápis vložen do Google Docs");
+      }catch(e){ showErr("Text zpracován, ale zápis do Docs selhal: "+e.message); }
+      setTimeout(()=>{ prog.style.display="none"; }, 800);
+    }
+    refresh(); return;
+  }
+
   const key=keyEl.value.trim(), pw=pwEl.value.trim(), model=fmtEl.value, lang=langEl.value;
   const cfg = key ? {mode:"direct", key, model, lang} : {mode:"proxy", pw, model, lang};
   const chunkSec = cfg.mode==="direct" ? CHUNK_DIRECT : CHUNK_PROXY;
@@ -545,6 +666,7 @@ $("#download").addEventListener("click", ()=>{
   a.download=name; a.click(); URL.revokeObjectURL(a.href);
 });
 
+selectInput(inputType);
 refresh();
 detectProxy();
 </script>
