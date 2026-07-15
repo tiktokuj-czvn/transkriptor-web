@@ -319,18 +319,17 @@ function fmtDur(s){ if(!isFinite(s)||s<=0) return ""; s=Math.round(s); const m=M
 // pošle přepis do Google Apps Scriptu -> vygeneruje zápis a vloží do Bataron Docs
 async function sendToBataron(text){
   const url=zapisUrlEl.value.trim();
-  if(!url) throw new Error("Chybí Apps Script URL pro Bataron.");
+  if(!url) throw new Error("Chybí Apps Script URL pro Bataron (doplň v ⚙ nastavení).");
   const title=selectedFile ? selectedFile.name.replace(/\.[^.]+$/,"") : "";
   let res;
   try{
-    res=await fetch(BATARON_PROXY_URL,{ method:"POST",
-      headers:{"Content-Type":"application/json","x-app-password":pwEl.value.trim()},
-      body: JSON.stringify({ url, transcript:text, title, date:todayCz() }) });
+    // přímo na Apps Script (6min limit) — obchází 60s limit Vercel funkce; text/plain = bez CORS preflightu
+    res=await fetch(url,{ method:"POST",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify({ transcript:text, title, date:todayCz(), secret:pwEl.value.trim() }) });
   }catch(e){
-    throw new Error("Nejde se připojit k serveru pro Bataron zápis. Otevři Vercel verzi appky; statická/GitHub Pages verze neumí zapisovat do Google Docs.");
+    throw new Error("Nejde se připojit k Apps Scriptu pro Bataron zápis. Zkontroluj Apps Script URL v ⚙ nastavení.");
   }
-  if([404,405,501].includes(res.status))
-    throw new Error("Tahle adresa nemá server pro Bataron zápis. Použij Vercel verzi appky, ne GitHub Pages ani lokálně otevřený soubor.");
   const t=await res.text();
   let j; try{ j=JSON.parse(t); }catch(e){ throw new Error("Neočekávaná odpověď scriptu: "+t.slice(0,150)); }
   if(!j.ok) throw new Error(j.error||"Zápis se nepovedl.");
