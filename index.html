@@ -3,33 +3,45 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Transkriptor — vícejazyčný přepis audia</title>
+<title>Transkriptor — ShortPRO</title>
+<link rel="icon" type="image/png" href="assets/shortpro-symbol.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700;900&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#f6f6f8; --card:#ffffff; --ink:#16161a; --muted:#6b6b76; --faint:#9a9aa6;
-    --line:#e7e7ec; --line2:#dcdce3; --accent:#5b54e6; --accent-ink:#ffffff;
-    --accent-soft:#efeefe; --ok:#0f9d58; --err:#d93025;
-    --radius:16px; --radius-sm:11px;
-    --shadow:0 1px 2px rgba(20,20,40,.04),0 10px 30px rgba(20,20,50,.06);
-    --shadow-lg:0 8px 40px rgba(30,30,70,.12);
+    --bg:#f6f6f8; --card:#ffffff; --ink:#0f0f1a; --muted:#5a5a6e; --faint:#9a9aa6;
+    --line:#e8e8f0; --line2:#dcdce3; --accent:#5c57cb; --accent-dark:#3a369b; --accent-ink:#ffffff;
+    --accent-soft:#edecfb; --ok:#0f9d58; --err:#d93025;
+    --grad-orange:linear-gradient(135deg,#FFF73A 0%,#FF45B3 100%);
+    --font-head:"Rubik",-apple-system,BlinkMacSystemFont,sans-serif;
+    --font-body:"Montserrat",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    --radius:18px; --radius-sm:12px;
+    --shadow:0 1px 2px rgba(20,20,40,.04),0 10px 30px rgba(92,87,203,.07);
+    --shadow-lg:0 12px 40px rgba(92,87,203,.16);
   }
   @media (prefers-color-scheme:dark){
     :root{
       --bg:#0d0d10; --card:#161619; --ink:#ececf1; --muted:#9a9aa6; --faint:#6d6d78;
-      --line:#26262d; --line2:#31313a; --accent:#8a82ff; --accent-ink:#0d0d10;
+      --line:#26262d; --line2:#31313a; --accent:#8a82ff; --accent-dark:#6f66ff; --accent-ink:#0d0d10;
       --accent-soft:#1e1c33; --ok:#3ecf8e;
       --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);
       --shadow-lg:0 8px 40px rgba(0,0,0,.5);
     }
   }
   *{box-sizing:border-box}
-  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  body{margin:0;font-family:var(--font-body);
     background:var(--bg);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
+  h1,h2,h3,.brand h1,.go,.seg button{font-family:var(--font-head)}
   .wrap{max-width:660px;margin:0 auto;padding:26px 20px 90px}
 
   /* header */
   header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:22px}
-  .brand h1{font-size:22px;margin:0;letter-spacing:-.02em;display:flex;align-items:center;gap:8px}
+  .brand h1{font-size:24px;margin:0;letter-spacing:-.02em;font-weight:900}
+  .brand .logo{height:24px;width:auto;display:block;margin-bottom:11px}
+  .brand .logo.dark{display:none}
+  @media (prefers-color-scheme:dark){ .brand .logo.light{display:none} .brand .logo.dark{display:block} }
   .brand .sub{color:var(--muted);font-size:14px;margin-top:3px}
   .badge{display:inline-flex;align-items:center;gap:5px;margin-top:9px;font-size:12px;color:var(--muted);
     background:var(--card);border:1px solid var(--line);border-radius:99px;padding:4px 10px}
@@ -97,10 +109,10 @@
   .opts{display:flex;gap:12px;flex-wrap:wrap;margin-top:16px}
   .opts>div{flex:1;min-width:150px}
 
-  .go{width:100%;padding:15px;font-size:16px;font-weight:700;border:none;border-radius:var(--radius-sm);
-    cursor:pointer;background:var(--accent);color:var(--accent-ink);margin-top:18px;transition:.15s;
-    box-shadow:0 4px 14px rgba(91,84,230,.28)}
-  .go:hover:not(:disabled){filter:brightness(1.05);transform:translateY(-1px)}
+  .go{width:100%;padding:15px;font-size:16px;font-weight:500;border:none;border-radius:var(--radius-sm);
+    cursor:pointer;background:var(--accent);color:var(--accent-ink);margin-top:18px;transition:.2s;
+    box-shadow:0 4px 14px rgba(92,87,203,.28)}
+  .go:hover:not(:disabled){background:var(--accent-dark);transform:translateY(-1px)}
   .go:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;transform:none}
   #btnHint{text-align:center;font-size:12.5px;color:var(--faint);margin-top:9px}
 
@@ -138,8 +150,10 @@
   .lock.hide{opacity:0;pointer-events:none}
   .lockcard{width:100%;max-width:380px;background:var(--card);border:1px solid var(--line);
     border-radius:var(--radius);box-shadow:var(--shadow-lg);padding:34px 28px;text-align:center}
-  .lockcard .lockico{font-size:38px;margin-bottom:10px}
-  .lockcard h2{margin:0 0 4px;font-size:21px;letter-spacing:-.02em}
+  .lockcard .locklogo{height:28px;width:auto;margin:0 auto 16px;display:block}
+  .lockcard .locklogo.dark{display:none}
+  @media (prefers-color-scheme:dark){ .lockcard .locklogo.light{display:none} .lockcard .locklogo.dark{display:block} }
+  .lockcard h2{margin:0 0 4px;font-size:22px;letter-spacing:-.02em;font-weight:700}
   .lockcard p{margin:0 0 20px;color:var(--muted);font-size:14px}
   .pwwrap{position:relative;text-align:left}
   .pwwrap input{padding-right:74px}
@@ -178,7 +192,8 @@
 <!-- ZÁMEK: heslo se řeší jednou na vstupu -->
 <div class="lock" id="lock">
   <div class="lockcard">
-    <div class="lockico">🔒</div>
+    <img class="locklogo light" src="assets/shortpro-logo.png" alt="ShortPRO">
+    <img class="locklogo dark" src="assets/shortpro-logo-white.png" alt="ShortPRO">
     <h2>Transkriptor</h2>
     <p>Zadej heslo appky a odemkni.</p>
     <div class="pwwrap" id="lockPwWrap">
@@ -199,7 +214,9 @@
 <div class="wrap">
   <header>
     <div class="brand">
-      <h1><span>🎧</span> Transkriptor</h1>
+      <img class="logo light" src="assets/shortpro-logo.png" alt="ShortPRO" height="24">
+      <img class="logo dark" src="assets/shortpro-logo-white.png" alt="ShortPRO" height="24">
+      <h1>Transkriptor</h1>
       <div class="sub">Přepis audia, videa i dokumentů → zápis.</div>
       <div class="badge">🔒 Běží u tebe v prohlížeči</div>
     </div>
